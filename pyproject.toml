@@ -1,0 +1,38 @@
+[project]
+name = "cocktails"
+version = "0.1.0"
+description = "A Django app for cocktail recipes"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "django==6.0.1",
+    "psycopg[binary]>=3.3.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-django>=4.11.1",
+    "ruff>=0.14.13",
+    "ty>=0.0.13",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/cocktails/settings.py" = ["E501"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "cocktails.settings"
+python_files = ["test_*.py"]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ty.environment]
+python-version = "3.13"
