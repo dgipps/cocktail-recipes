@@ -2,8 +2,6 @@
 
 from decimal import Decimal
 
-import pytest
-
 from recipes.measurements import (
     MeasurementUnit,
     convert_to_ml,
