@@ -1,5 +1,10 @@
 from django.contrib import admin
+from django.http import JsonResponse
+from django.shortcuts import redirect, render
+from django.urls import path
 from django.utils.html import format_html_join, mark_safe
+
+from inventory.models import UserInventory
 
 from .models import Ingredient, IngredientCategory, IngredientCategoryAncestor
 
@@ -174,6 +179,100 @@ class IngredientAdmin(admin.ModelAdmin):
             },
         ),
     ]
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "manage-inventory/",
+                self.admin_site.admin_view(self.manage_inventory_view),
+                name="ingredients_ingredient_manage_inventory",
+            ),
+        ]
+        return custom_urls + urls
+
+    def changelist_view(self, request, extra_context=None):
+        """Add manage inventory button to changelist."""
+        extra_context = extra_context or {}
+        extra_context["show_manage_inventory_button"] = True
+        return super().changelist_view(request, extra_context)
+
+    def manage_inventory_view(self, request):
+        """List all ingredients with inventory toggle for current user."""
+        if request.method == "POST":
+            ingredient_id = request.POST.get("ingredient_id")
+            action = request.POST.get("action")  # "add" or "remove"
+
+            if ingredient_id and action:
+                inventory, created = UserInventory.objects.get_or_create(
+                    user=request.user,
+                    ingredient_id=ingredient_id,
+                    defaults={"in_stock": action == "add"},
+                )
+                if not created:
+                    inventory.in_stock = action == "add"
+                    inventory.save()
+
+                # If AJAX request, return simple response
+                if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                    return JsonResponse({
+                        "status": "ok",
+                        "in_stock": inventory.in_stock,
+                    })
+
+                return redirect("admin:ingredients_ingredient_manage_inventory")
+
+        # Get filter parameters
+        category_id = request.GET.get("category")
+        search_query = request.GET.get("q", "")
+        show_only = request.GET.get("show", "all")  # all, in_stock, out_of_stock
+
+        # Get all ingredients
+        ingredients = Ingredient.objects.all().prefetch_related("categories")
+
+        if category_id:
+            category = IngredientCategory.objects.filter(pk=category_id).first()
+            if category:
+                descendant_categories = category.get_descendants(include_self=True)
+                ingredients = ingredients.filter(categories__in=descendant_categories)
+
+        if search_query:
+            ingredients = ingredients.filter(name__icontains=search_query)
+
+        ingredients = ingredients.distinct().order_by("name")
+
+        # Get user's inventory status
+        user_inventory = set(
+            UserInventory.objects.filter(
+                user=request.user, in_stock=True
+            ).values_list("ingredient_id", flat=True)
+        )
+
+        # Filter by stock status if requested
+        if show_only == "in_stock":
+            ingredients = ingredients.filter(id__in=user_inventory)
+        elif show_only == "out_of_stock":
+            ingredients = ingredients.exclude(id__in=user_inventory)
+
+        # Get categories for filter dropdown
+        categories = IngredientCategory.objects.all().order_by("name")
+
+        context = {
+            **self.admin_site.each_context(request),
+            "ingredients": ingredients,
+            "user_inventory": user_inventory,
+            "categories": categories,
+            "selected_category": category_id,
+            "search_query": search_query,
+            "show_only": show_only,
+            "in_stock_count": len(user_inventory),
+            "total_count": Ingredient.objects.count(),
+            "title": "Manage My Inventory",
+            "opts": self.model._meta,
+        }
+        return render(
+            request, "admin/ingredients/ingredient/manage_inventory.html", context
+        )
 
     def get_categories(self, obj):
         return ", ".join(c.name for c in obj.categories.all()[:3])

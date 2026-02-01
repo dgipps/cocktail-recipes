@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     # Local apps
     'ingredients',
     'recipes',
+    'inventory',
 ]
 
 MIDDLEWARE = [

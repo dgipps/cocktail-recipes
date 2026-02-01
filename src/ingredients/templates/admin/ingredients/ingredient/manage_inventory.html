@@ -1,0 +1,202 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  .inventory-stats {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+  }
+  .inventory-stats .stat {
+    display: inline-block;
+    margin-right: 30px;
+  }
+  .inventory-stats .stat-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #417690;
+  }
+  .filters {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 5px;
+  }
+  .filters form {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .filters .filter-group {
+    display: flex;
+    flex-direction: column;
+  }
+  .filters label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    font-size: 12px;
+  }
+  .filters select, .filters input[type="text"] {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    min-width: 150px;
+  }
+  .filters button {
+    padding: 8px 16px;
+    background: #417690;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .filters button:hover {
+    background: #205067;
+  }
+  .ingredient-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .ingredient-table th, .ingredient-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  .ingredient-table th {
+    background: #f8f9fa;
+  }
+  .ingredient-table tr:hover {
+    background: #f5f5f5;
+  }
+  .btn-stock {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    min-width: 100px;
+  }
+  .btn-in-stock {
+    background: #28a745;
+    color: white;
+  }
+  .btn-in-stock:hover {
+    background: #218838;
+  }
+  .btn-out-of-stock {
+    background: #dc3545;
+    color: white;
+  }
+  .btn-out-of-stock:hover {
+    background: #c82333;
+  }
+  .category-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #e9ecef;
+    border-radius: 10px;
+    font-size: 11px;
+    margin: 2px;
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_label|capfirst }}</a>
+  &rsaquo; <a href="{% url 'admin:ingredients_ingredient_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {% translate 'Manage Inventory' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Manage My Inventory</h1>
+
+<div class="inventory-stats">
+  <div class="stat">
+    <span class="stat-value">{{ in_stock_count }}</span>
+    <span class="stat-label">In Stock</span>
+  </div>
+  <div class="stat">
+    <span class="stat-value">{{ total_count }}</span>
+    <span class="stat-label">Total Ingredients</span>
+  </div>
+</div>
+
+<div class="filters">
+  <form method="get">
+    <div class="filter-group">
+      <label for="q">Search</label>
+      <input type="text" name="q" id="q" value="{{ search_query }}" placeholder="Search ingredients...">
+    </div>
+    <div class="filter-group">
+      <label for="category">Category</label>
+      <select name="category" id="category">
+        <option value="">All Categories</option>
+        {% for cat in categories %}
+          <option value="{{ cat.pk }}" {% if selected_category == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="show">Show</label>
+      <select name="show" id="show">
+        <option value="all" {% if show_only == "all" %}selected{% endif %}>All</option>
+        <option value="in_stock" {% if show_only == "in_stock" %}selected{% endif %}>In Stock Only</option>
+        <option value="out_of_stock" {% if show_only == "out_of_stock" %}selected{% endif %}>Out of Stock Only</option>
+      </select>
+    </div>
+    <button type="submit">Filter</button>
+  </form>
+</div>
+
+<table class="ingredient-table">
+  <thead>
+    <tr>
+      <th>Ingredient</th>
+      <th>Categories</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ingredient in ingredients %}
+    <tr>
+      <td>
+        <a href="{% url 'admin:ingredients_ingredient_change' ingredient.pk %}">{{ ingredient.name }}</a>
+      </td>
+      <td>
+        {% for cat in ingredient.categories.all %}
+          <span class="category-tag">{{ cat.name }}</span>
+        {% endfor %}
+      </td>
+      <td>
+        <form method="post" style="display: inline;">
+          {% csrf_token %}
+          <input type="hidden" name="ingredient_id" value="{{ ingredient.pk }}">
+          {% if ingredient.pk in user_inventory %}
+            <input type="hidden" name="action" value="remove">
+            <button type="submit" class="btn-stock btn-in-stock">In Stock</button>
+          {% else %}
+            <input type="hidden" name="action" value="add">
+            <button type="submit" class="btn-stock btn-out-of-stock">Add</button>
+          {% endif %}
+        </form>
+      </td>
+    </tr>
+    {% empty %}
+    <tr>
+      <td colspan="3">No ingredients found matching your criteria.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<p style="margin-top: 20px;">
+  <a href="{% url 'admin:ingredients_ingredient_changelist' %}">&laquo; Back to ingredients list</a>
+</p>
+{% endblock %}
