@@ -96,6 +96,10 @@ class Ingredient(models.Model):
         help_text="Categories this ingredient belongs to",
     )
     description = models.TextField(blank=True)
+    needs_categorization = models.BooleanField(
+        default=False,
+        help_text="Flag for ingredients needing category assignment",
+    )
 
     class Meta:
         ordering = ["name"]

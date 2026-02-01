@@ -155,7 +155,8 @@ class IngredientCategoryAncestorAdmin(admin.ModelAdmin):
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
-    list_display = ["name", "slug", "get_categories"]
+    list_display = ["name", "slug", "get_categories", "needs_categorization"]
+    list_filter = ["needs_categorization", "categories"]
     search_fields = ["name", "slug"]
     prepopulated_fields = {"slug": ("name",)}
     filter_horizontal = ["categories"]

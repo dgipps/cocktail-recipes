@@ -249,3 +249,87 @@ class RecipeIngredient(models.Model):
         if self.unit:
             return f"{amount_str} {self.unit}"
         return amount_str
+
+
+class RecipeImport(models.Model):
+    """
+    Holds parsed recipe data from images for review before importing.
+
+    Workflow:
+    1. Admin uploads image(s)
+    2. Ollama parses image and extracts recipe JSON
+    3. Admin reviews parsed data
+    4. Admin approves/rejects
+    5. On approval, Recipe and RecipeIngredients are created/updated
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending Processing"
+        PARSED = "parsed", "Parsed - Awaiting Review"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        ERROR = "error", "Parse Error"
+
+    # Source image
+    source_image = models.ImageField(
+        upload_to="recipe_imports/",
+        help_text="Image of recipe page to parse",
+    )
+
+    # Processing status
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    parse_error = models.TextField(
+        blank=True,
+        help_text="Error message if parsing failed",
+    )
+
+    # Parsed data (JSON with all recipes found in image)
+    parsed_data = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Parsed recipe data from AI",
+    )
+
+    # Link to created recipe (after approval)
+    recipe = models.ForeignKey(
+        Recipe,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="imports",
+        help_text="Recipe created from this import",
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When parsing completed",
+    )
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When import was approved",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "recipe import"
+        verbose_name_plural = "recipe imports"
+
+    def __str__(self):
+        if self.parsed_data and "recipes" in self.parsed_data:
+            names = [r.get("name", "?") for r in self.parsed_data["recipes"][:3]]
+            return f"{', '.join(names)} ({self.status})"
+        return f"Import {self.pk} ({self.status})"
+
+    def get_recipe_count(self) -> int:
+        """Return number of recipes parsed from image."""
+        if self.parsed_data and "recipes" in self.parsed_data:
+            return len(self.parsed_data["recipes"])
+        return 0

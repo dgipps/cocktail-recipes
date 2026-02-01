@@ -1,0 +1,95 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  .upload-form {
+    max-width: 600px;
+    margin: 20px 0;
+  }
+  .upload-form .form-row {
+    margin-bottom: 15px;
+  }
+  .upload-form label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  .upload-form .helptext {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 5px;
+  }
+  .upload-form input[type="file"] {
+    padding: 10px;
+    border: 2px dashed #ccc;
+    width: 100%;
+    background: #fafafa;
+  }
+  .upload-form input[type="text"] {
+    padding: 8px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .upload-form button {
+    padding: 10px 20px;
+    background: #417690;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .upload-form button:hover {
+    background: #205067;
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_label|capfirst }}</a>
+  &rsaquo; <a href="{% url 'admin:recipes_recipeimport_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {% translate 'Upload' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Upload Recipe Images</h1>
+
+<p>Upload images of cocktail recipe pages to parse with AI. Each image will be analyzed to extract recipe names, ingredients, instructions, and garnishes.</p>
+
+<form method="post" enctype="multipart/form-data" class="upload-form">
+  {% csrf_token %}
+
+  <div class="form-row">
+    <label for="id_images">{{ form.images.label }}</label>
+    {{ form.images }}
+    {% if form.images.help_text %}
+      <p class="helptext">{{ form.images.help_text }}</p>
+    {% endif %}
+    {% if form.images.errors %}
+      <ul class="errorlist">
+        {% for error in form.images.errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+
+  <div class="form-row">
+    <label for="id_source">{{ form.source.label }}</label>
+    {{ form.source }}
+    {% if form.source.help_text %}
+      <p class="helptext">{{ form.source.help_text }}</p>
+    {% endif %}
+  </div>
+
+  <div class="form-row">
+    <button type="submit">Upload and Parse</button>
+  </div>
+</form>
+
+<p><a href="{% url 'admin:recipes_recipeimport_changelist' %}">&laquo; Back to import list</a></p>
+{% endblock %}

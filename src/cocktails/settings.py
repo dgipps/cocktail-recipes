@@ -123,3 +123,22 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Media files (user uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR.parent / 'media'
+
+# Default primary key field type
+# https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Ollama settings for recipe image parsing
+# Recommended models:
+#   - deepseek-ocr (best for OCR tasks, 6.7GB)
+#   - llama3.2-vision (good general vision, 8GB)
+#   - minicpm-v (efficient, smaller)
+#   - llava (base model, may hallucinate)
+# Install: ollama pull deepseek-ocr
+OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'deepseek-ocr')
