@@ -3,8 +3,12 @@ import logging
 
 from django import forms
 from django.contrib import admin, messages
+from django.shortcuts import render
+from django.urls import path
 from django.utils import timezone
 from django.utils.html import format_html
+
+from inventory.services import get_makeable_recipes, get_user_inventory_stats
 
 from .models import Recipe, RecipeImport, RecipeIngredient
 from .services.image_parser import ParseError, parse_recipe_image
@@ -39,6 +43,60 @@ class RecipeAdmin(admin.ModelAdmin):
         ("Source", {"fields": ["source", "page"]}),
         ("Instructions", {"fields": ["method", "garnish", "notes"]}),
     ]
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "available/",
+                self.admin_site.admin_view(self.available_recipes_view),
+                name="recipes_recipe_available",
+            ),
+        ]
+        return custom_urls + urls
+
+    def changelist_view(self, request, extra_context=None):
+        """Add available recipes button to changelist."""
+        extra_context = extra_context or {}
+        extra_context["show_available_recipes_button"] = True
+        return super().changelist_view(request, extra_context)
+
+    def available_recipes_view(self, request):
+        """Show recipes user can make with their inventory."""
+        # Get depth parameter (default 1 = same category)
+        try:
+            depth = int(request.GET.get("depth", 1))
+            depth = max(0, min(depth, 5))  # Clamp to 0-5
+        except (ValueError, TypeError):
+            depth = 1
+
+        # Get makeable recipes
+        recipes = get_makeable_recipes(request.user, max_depth=depth)
+
+        # Get inventory stats
+        inventory_stats = get_user_inventory_stats(request.user)
+
+        # Depth options for UI
+        depth_options = [
+            (0, "Exact match only"),
+            (1, "Same category (default)"),
+            (2, "Parent category"),
+            (3, "Grandparent category"),
+        ]
+
+        context = {
+            **self.admin_site.each_context(request),
+            "recipes": recipes,
+            "recipe_count": recipes.count(),
+            "depth": depth,
+            "depth_options": depth_options,
+            "inventory_stats": inventory_stats,
+            "title": "Available Recipes",
+            "opts": self.model._meta,
+        }
+        return render(
+            request, "admin/recipes/recipe/available_recipes.html", context
+        )
 
     def get_ingredient_count(self, obj):
         return obj.recipe_ingredients.count()

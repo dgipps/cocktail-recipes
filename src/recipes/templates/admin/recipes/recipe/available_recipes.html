@@ -1,0 +1,167 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  .stats-bar {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 30px;
+    align-items: center;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+  }
+  .stat-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #417690;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: #666;
+  }
+  .depth-selector {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+  }
+  .depth-selector form {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+  }
+  .depth-selector select {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    min-width: 200px;
+  }
+  .depth-selector button {
+    padding: 8px 16px;
+    background: #417690;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .depth-selector button:hover {
+    background: #205067;
+  }
+  .recipe-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .recipe-table th, .recipe-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  .recipe-table th {
+    background: #f8f9fa;
+  }
+  .recipe-table tr:hover {
+    background: #f5f5f5;
+  }
+  .ingredient-count {
+    color: #28a745;
+    font-weight: bold;
+  }
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+  }
+  .empty-state p {
+    margin: 10px 0;
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_label|capfirst }}</a>
+  &rsaquo; <a href="{% url 'admin:recipes_recipe_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {% translate 'Available Recipes' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Available Recipes</h1>
+
+<div class="stats-bar">
+  <div class="stat">
+    <span class="stat-value">{{ recipe_count }}</span>
+    <span class="stat-label">Recipes You Can Make</span>
+  </div>
+  <div class="stat">
+    <span class="stat-value">{{ inventory_stats.in_stock }}</span>
+    <span class="stat-label">Ingredients In Stock</span>
+  </div>
+</div>
+
+<div class="depth-selector">
+  <form method="get">
+    <label for="depth"><strong>Category Match Depth:</strong></label>
+    <select name="depth" id="depth" onchange="this.form.submit()">
+      {% for value, label in depth_options %}
+        <option value="{{ value }}" {% if depth == value %}selected{% endif %}>{{ value }} - {{ label }}</option>
+      {% endfor %}
+    </select>
+    <noscript><button type="submit">Apply</button></noscript>
+  </form>
+</div>
+
+{% if inventory_stats.in_stock == 0 %}
+<div class="empty-state">
+  <p><strong>No ingredients in your inventory yet.</strong></p>
+  <p>Add ingredients to your inventory to see which recipes you can make.</p>
+  <p><a href="{% url 'admin:ingredients_ingredient_manage_inventory' %}">Manage My Inventory</a></p>
+</div>
+{% elif recipe_count == 0 %}
+<div class="empty-state">
+  <p><strong>No recipes match your current inventory at depth {{ depth }}.</strong></p>
+  <p>Try increasing the category match depth to allow more substitutions.</p>
+</div>
+{% else %}
+<table class="recipe-table">
+  <thead>
+    <tr>
+      <th>Recipe</th>
+      <th>Ingredients</th>
+      <th>Source</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for recipe in recipes %}
+    <tr>
+      <td>
+        <a href="{% url 'admin:recipes_recipe_change' recipe.pk %}">{{ recipe.name }}</a>
+      </td>
+      <td>
+        <span class="ingredient-count">{{ recipe.required_count }}/{{ recipe.required_count }}</span>
+      </td>
+      <td>
+        {% if recipe.source %}
+          {{ recipe.source }}{% if recipe.page %} (p. {{ recipe.page }}){% endif %}
+        {% else %}
+          -
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<p style="margin-top: 20px;">
+  <a href="{% url 'admin:recipes_recipe_changelist' %}">&laquo; Back to recipes list</a>
+</p>
+{% endblock %}
