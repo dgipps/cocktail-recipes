@@ -70,8 +70,13 @@
     background: #f5f5f5;
   }
   .ingredient-count {
-    color: #28a745;
     font-weight: bold;
+  }
+  .exact-match {
+    color: #28a745;
+  }
+  .category-match {
+    color: #fd7e14;
   }
   .empty-state {
     text-align: center;
@@ -135,7 +140,8 @@
   <thead>
     <tr>
       <th>Recipe</th>
-      <th>Ingredients</th>
+      <th>Exact</th>
+      <th>By Category</th>
       <th>Source</th>
     </tr>
   </thead>
@@ -146,7 +152,14 @@
         <a href="{% url 'admin:recipes_recipe_change' recipe.pk %}">{{ recipe.name }}</a>
       </td>
       <td>
-        <span class="ingredient-count">{{ recipe.required_count }}/{{ recipe.required_count }}</span>
+        <span class="ingredient-count exact-match">{{ recipe.exact_match_count }}</span>
+      </td>
+      <td>
+        {% if recipe.category_match_count > 0 %}
+          <span class="ingredient-count category-match">{{ recipe.category_match_count }}</span>
+        {% else %}
+          <span class="ingredient-count exact-match">0</span>
+        {% endif %}
       </td>
       <td>
         {% if recipe.source %}
