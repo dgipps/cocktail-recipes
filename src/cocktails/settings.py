@@ -134,12 +134,20 @@ MEDIA_ROOT = BASE_DIR.parent / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Ollama settings for recipe image parsing
-# Recommended models:
-#   - deepseek-ocr (best for OCR tasks, 6.7GB)
-#   - llama3.2-vision (good general vision, 8GB)
-#   - minicpm-v (efficient, smaller)
-#   - llava (base model, may hallucinate)
-# Install: ollama pull deepseek-ocr
+# Ollama settings for recipe image parsing (two-step approach)
+# Step 1: OCR - Vision model extracts text from image
+# Step 2: Parse - Text LLM parses text into structured JSON
+#
+# OCR models (vision):
+#   - minicpm-v (recommended, best OCR accuracy)
+#   - llama3.2-vision:11b (good accuracy, larger)
+#   - moondream (fast, smaller, less accurate)
+#
+# Parse models (text):
+#   - llama3.2 (recommended, native JSON mode)
+#   - qwen2.5 (excellent structured output)
+#
+# Install: ollama pull minicpm-v && ollama pull llama3.2
 OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'deepseek-ocr')
+OLLAMA_OCR_MODEL = os.getenv('OLLAMA_OCR_MODEL', 'minicpm-v')
+OLLAMA_PARSE_MODEL = os.getenv('OLLAMA_PARSE_MODEL', 'llama3.2')

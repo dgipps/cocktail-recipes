@@ -6,7 +6,7 @@ from django.contrib import admin, messages
 from django.shortcuts import render
 from django.urls import path
 from django.utils import timezone
-from django.utils.html import format_html
+from django.utils.html import escape, format_html, mark_safe
 
 from inventory.services import get_makeable_recipes, get_user_inventory_stats
 
@@ -174,6 +174,8 @@ class RecipeImportAdmin(admin.ModelAdmin):
     readonly_fields = [
         "status",
         "parse_error",
+        "raw_ocr_text_display",
+        "matching_log_display",
         "parsed_data_display",
         "recipe",
         "created_at",
@@ -186,6 +188,20 @@ class RecipeImportAdmin(admin.ModelAdmin):
 
     fieldsets = [
         (None, {"fields": ["source_image", "image_preview", "status"]}),
+        (
+            "OCR Text",
+            {
+                "fields": ["raw_ocr_text_display"],
+                "classes": ["wide", "collapse"],
+            },
+        ),
+        (
+            "Ingredient Matching",
+            {
+                "fields": ["matching_log_display"],
+                "classes": ["wide"],
+            },
+        ),
         (
             "Parsed Data",
             {
@@ -250,10 +266,11 @@ class RecipeImportAdmin(admin.ModelAdmin):
         return render(request, "admin/recipes/recipeimport/upload.html", context)
 
     def _parse_import(self, recipe_import: RecipeImport) -> None:
-        """Parse a single import using Ollama."""
+        """Parse a single import using Ollama (two-step: OCR then parse)."""
         try:
             image_path = recipe_import.source_image.path
-            parsed = parse_recipe_image(image_path)
+            raw_text, parsed = parse_recipe_image(image_path)
+            recipe_import.raw_ocr_text = raw_text
             recipe_import.parsed_data = parsed
             recipe_import.status = RecipeImport.Status.PARSED
             recipe_import.processed_at = timezone.now()
@@ -314,6 +331,83 @@ class RecipeImportAdmin(admin.ModelAdmin):
                 obj.source_image.url,
             )
         return "-"
+
+    @admin.display(description="Raw OCR Text")
+    def raw_ocr_text_display(self, obj):
+        """Show raw OCR text extracted from image."""
+        if not obj.raw_ocr_text:
+            return "-"
+        return format_html(
+            '<pre style="white-space: pre-wrap;">{}</pre>', obj.raw_ocr_text
+        )
+
+    @admin.display(description="Ingredient Matching Log")
+    def matching_log_display(self, obj):
+        """Show ingredient matching decisions in a readable format."""
+        if not obj.parsed_data or "matching_log" not in obj.parsed_data:
+            return "-"
+
+        log = obj.parsed_data["matching_log"]
+        if not log:
+            return "No ingredients processed"
+
+        # Build HTML table - escape user data
+        rows = []
+        for entry in log:
+            status = entry.get("status", "unknown")
+            original = escape(entry.get("original", "?"))
+            matched_to = escape(entry.get("matched_to") or "")
+            similarity = entry.get("similarity")
+            recipe = escape(entry.get("recipe", "?"))
+
+            # Get candidates checked info
+            candidates = entry.get("candidates_checked", [])
+            candidates_info = ""
+            if candidates:
+                cand_list = ", ".join(
+                    f"{c['name']} ({c['similarity']:.0%})"
+                    for c in candidates[:3]
+                )
+                candidates_info = f" [checked: {cand_list}]"
+
+            # Status styling
+            if status == "exact_match":
+                status_html = '<span style="color: green;">✓ Exact</span>'
+                result = matched_to or original
+            elif status == "fuzzy_matched":
+                pct = f"{similarity:.0%}" if similarity else "?"
+                status_html = f'<span style="color: orange;">↔ Fuzzy ({pct})</span>'
+                result = f"{original} → <strong>{matched_to}</strong>"
+            else:  # no_match
+                status_html = '<span style="color: gray;">+ New</span>'
+                result = f"{original}{candidates_info}"
+
+            rows.append(
+                f"<tr><td>{recipe}</td><td>{status_html}</td><td>{result}</td></tr>"
+            )
+
+        th_style = "text-align:left;padding:4px;border-bottom:1px solid #ccc;"
+        table = (
+            '<table style="border-collapse:collapse;width:100%;">'
+            "<thead><tr>"
+            f'<th style="{th_style}">Recipe</th>'
+            f'<th style="{th_style}">Status</th>'
+            f'<th style="{th_style}">Ingredient</th>'
+            "</tr></thead><tbody>"
+            + "".join(rows)
+            + "</tbody></table>"
+        )
+
+        # Summary
+        exact = sum(1 for e in log if e.get("status") == "exact_match")
+        fuzzy = sum(1 for e in log if e.get("status") == "fuzzy_matched")
+        new = sum(1 for e in log if e.get("status") == "no_match")
+        summary = (
+            f"<p><strong>Summary:</strong> {exact} exact matches, "
+            f"{fuzzy} fuzzy matches, {new} new ingredients</p>"
+        )
+
+        return mark_safe(summary + table)
 
     @admin.display(description="Parsed Data")
     def parsed_data_display(self, obj):

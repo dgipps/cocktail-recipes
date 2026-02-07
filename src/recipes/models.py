@@ -287,6 +287,12 @@ class RecipeImport(models.Model):
         help_text="Error message if parsing failed",
     )
 
+    # Raw OCR text (for debugging)
+    raw_ocr_text = models.TextField(
+        blank=True,
+        help_text="Raw OCR text extracted from image (for debugging)",
+    )
+
     # Parsed data (JSON with all recipes found in image)
     parsed_data = models.JSONField(
         null=True,
