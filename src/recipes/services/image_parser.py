@@ -29,6 +29,8 @@ Guidelines:
 - For ingredients: keep the amount, unit, and full ingredient name together on ONE line
   Example: "1½ OUNCES BARBADILLO PRINCIPÉ AMONTILLADO SHERRY" (not split across lines)
 - Include ALL ingredients, even those with small amounts like "1 dash" or "1 drop"
+- Include ingredients without amounts (e.g., "CLUB SODA", "DRY CHAMPAGNE")
+- Include countable ingredients (e.g., "1 EGG WHITE", "2 STRAWBERRIES")
 - Preserve recipe names, measurements, and instructions accurately
 """
 
@@ -46,7 +48,14 @@ CRITICAL - Ingredient parsing:
   it is a CONTINUATION of the previous ingredient name. Combine them.
   Example: "1½ OUNCES BARBADILLO PRINCIPÉ" followed by "AMONTILLADO SHERRY"
   → This is ONE ingredient: "1.5 oz Barbadillo Principé Amontillado Sherry"
-- A new ingredient always starts with an amount (number)
+- A new ingredient always starts with an amount (number) OR is a standalone ingredient
+
+IMPORTANT - Handle these special ingredient types:
+1. Countable items without units: "1 EGG WHITE" → amount: "1", unit: "whole", name: "Egg White"
+   Other examples: "2 STRAWBERRIES", "1 ORANGE SLICE", "3 MINT LEAVES"
+2. Toppers/fillers with no amount: "CLUB SODA" → amount: "", unit: "top", name: "Club Soda"
+   Other examples: "DRY CHAMPAGNE", "GINGER BEER", "SODA WATER"
+3. These ARE ingredients - do not skip them!
 
 Formatting rules:
 - Convert fractions to decimals: 1½ → 1.5, ¾ → 0.75, ¼ → 0.25

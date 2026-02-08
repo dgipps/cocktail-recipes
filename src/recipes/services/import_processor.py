@@ -62,15 +62,79 @@ def normalize_unit(unit: str | None) -> str:
     return UNIT_ALIASES.get(unit_lower, unit_lower)
 
 
+import re
+
+# Pattern to extract amount and unit from combined strings like "1.5 oz" or "1/4 tsp"
+AMOUNT_UNIT_PATTERN = re.compile(
+    r"^([\d./\s]+)\s*(oz|ml|cl|tsp|tbsp|dash|dashes|drop|drops|barspoon|barspoons|"
+    r"rinse|float|top|splash|whole|piece|pieces|slice|slices|wedge|wedges|"
+    r"sprig|sprigs|leaf|leaves|ounce|ounces|teaspoon|teaspoons|tablespoon|tablespoons)?\s*$",
+    re.IGNORECASE,
+)
+
+
+def parse_amount_and_unit(
+    amount_str: str | None,
+    unit_str: str | None,
+) -> tuple[Decimal | None, str]:
+    """
+    Parse amount and unit, handling combined formats like "1.5 oz".
+
+    Returns (amount, unit) tuple.
+    """
+    # If we have a separate unit, just parse the amount
+    if unit_str:
+        return parse_amount(amount_str), normalize_unit(unit_str)
+
+    # Try to extract unit from amount string (e.g., "1.5 oz")
+    if amount_str:
+        match = AMOUNT_UNIT_PATTERN.match(str(amount_str).strip())
+        if match:
+            amt_part = match.group(1).strip()
+            unit_part = match.group(2) or ""
+            return parse_amount(amt_part), normalize_unit(unit_part)
+
+    return parse_amount(amount_str), ""
+
+
 def parse_amount(amount_str: str | None) -> Decimal | None:
-    """Parse an amount string to Decimal."""
+    """
+    Parse an amount string to Decimal.
+
+    Handles:
+    - Decimals: "1.5", "0.75"
+    - Fractions: "1/4", "1/2"
+    - Mixed fractions: "1 1/2", "2 1/4"
+    """
     if not amount_str:
         return None
+
+    amount_str = str(amount_str).strip()
+
+    # Try direct decimal parse first
     try:
-        return Decimal(str(amount_str).strip())
+        return Decimal(amount_str)
     except InvalidOperation:
-        logger.warning(f"Could not parse amount: {amount_str}")
-        return None
+        pass
+
+    # Handle fractions like "1/4" or "1/2"
+    if "/" in amount_str:
+        parts = amount_str.split()
+        try:
+            if len(parts) == 1:
+                # Simple fraction: "1/4"
+                num, denom = parts[0].split("/")
+                return Decimal(num) / Decimal(denom)
+            elif len(parts) == 2:
+                # Mixed fraction: "1 1/2"
+                whole = Decimal(parts[0])
+                num, denom = parts[1].split("/")
+                return whole + Decimal(num) / Decimal(denom)
+        except (ValueError, InvalidOperation, ZeroDivisionError):
+            pass
+
+    logger.warning(f"Could not parse amount: {amount_str}")
+    return None
 
 
 def get_or_create_ingredient(name: str) -> tuple[Ingredient, bool]:
@@ -144,11 +208,16 @@ def create_recipe_from_data(
     for order, ing_data in enumerate(recipe_data.get("ingredients", [])):
         ingredient, _ = get_or_create_ingredient(ing_data.get("name", "Unknown"))
 
+        # Parse amount and unit, handling combined formats like "1.5 oz"
+        amount, unit = parse_amount_and_unit(
+            ing_data.get("amount"), ing_data.get("unit")
+        )
+
         RecipeIngredient.objects.create(
             recipe=recipe,
             ingredient=ingredient,
-            amount=parse_amount(ing_data.get("amount")),
-            unit=normalize_unit(ing_data.get("unit")),
+            amount=amount,
+            unit=unit,
             order=order,
         )
 
@@ -180,11 +249,16 @@ def update_recipe_from_data(
     for order, ing_data in enumerate(recipe_data.get("ingredients", [])):
         ingredient, _ = get_or_create_ingredient(ing_data.get("name", "Unknown"))
 
+        # Parse amount and unit, handling combined formats like "1.5 oz"
+        amount, unit = parse_amount_and_unit(
+            ing_data.get("amount"), ing_data.get("unit")
+        )
+
         RecipeIngredient.objects.create(
             recipe=recipe,
             ingredient=ingredient,
-            amount=parse_amount(ing_data.get("amount")),
-            unit=normalize_unit(ing_data.get("unit")),
+            amount=amount,
+            unit=unit,
             order=order,
         )
 
