@@ -1,6 +1,7 @@
 """Process approved recipe imports into Recipe objects."""
 
 import logging
+import re
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
@@ -61,8 +62,6 @@ def normalize_unit(unit: str | None) -> str:
     unit_lower = unit.lower().strip()
     return UNIT_ALIASES.get(unit_lower, unit_lower)
 
-
-import re
 
 # Pattern to extract amount and unit from combined strings like "1.5 oz" or "1/4 tsp"
 AMOUNT_UNIT_PATTERN = re.compile(
@@ -163,6 +162,22 @@ def get_or_create_ingredient(name: str) -> tuple[Ingredient, bool]:
         needs_categorization=True,
     )
     logger.info(f"Created new ingredient: {name}")
+
+    # Attempt auto-categorization with LLM
+    try:
+        from ingredients.services import categorize_ingredient
+
+        suggestion = categorize_ingredient(ingredient)
+        if suggestion:
+            logger.info(
+                f"Auto-suggested category for '{name}': "
+                f"{suggestion.suggested_category.name} "
+                f"(confidence: {suggestion.confidence:.0%})"
+            )
+    except Exception as e:
+        # Don't fail import if categorization fails
+        logger.warning(f"Failed to auto-categorize '{name}': {e}")
+
     return ingredient, True
 
 

@@ -1,4 +1,6 @@
+from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class IngredientCategory(models.Model):
@@ -118,3 +120,77 @@ class Ingredient(models.Model):
             category__in=self.categories.all()
         ).values_list("ancestor_id", flat=True)
         return IngredientCategory.objects.filter(id__in=ancestor_ids).distinct()
+
+
+class IngredientCategorySuggestion(models.Model):
+    """
+    Stores LLM-suggested category assignments for admin review.
+
+    Separate from Ingredient.categories to enable approval workflow.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending Review"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    ingredient = models.ForeignKey(
+        Ingredient,
+        on_delete=models.CASCADE,
+        related_name="category_suggestions",
+    )
+    suggested_category = models.ForeignKey(
+        IngredientCategory,
+        on_delete=models.CASCADE,
+        related_name="suggestions",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    confidence = models.FloatField(
+        help_text="LLM confidence score (0-1)",
+    )
+    reasoning = models.TextField(
+        blank=True,
+        help_text="LLM's reasoning for this suggestion",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ingredient", "suggested_category"],
+                condition=models.Q(status="pending"),
+                name="unique_pending_suggestion",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.ingredient.name} -> {self.suggested_category.name}"
+
+    def approve(self, user=None):
+        """Apply the suggestion to the ingredient."""
+        self.ingredient.categories.add(self.suggested_category)
+        self.ingredient.needs_categorization = False
+        self.ingredient.save()
+        self.status = self.Status.APPROVED
+        self.reviewed_at = timezone.now()
+        self.reviewed_by = user
+        self.save()
+
+    def reject(self, user=None):
+        """Reject the suggestion without applying."""
+        self.status = self.Status.REJECTED
+        self.reviewed_at = timezone.now()
+        self.reviewed_by = user
+        self.save()

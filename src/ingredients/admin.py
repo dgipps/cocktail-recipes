@@ -1,12 +1,17 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import path
-from django.utils.html import format_html_join, mark_safe
+from django.utils.html import format_html, format_html_join, mark_safe
 
 from inventory.models import UserInventory
 
-from .models import Ingredient, IngredientCategory, IngredientCategoryAncestor
+from .models import (
+    Ingredient,
+    IngredientCategory,
+    IngredientCategoryAncestor,
+    IngredientCategorySuggestion,
+)
 
 
 @admin.register(IngredientCategory)
@@ -299,3 +304,110 @@ class IngredientAdmin(admin.ModelAdmin):
             return "No categories assigned"
 
         return mark_safe("<br>".join(str(h) for h in hierarchies))
+
+    actions = ["trigger_categorization"]
+
+    @admin.action(description="Trigger LLM categorization for selected")
+    def trigger_categorization(self, request, queryset):
+        """Queue selected ingredients for LLM categorization."""
+        from .services import CategorizationError, categorize_ingredient
+
+        categorized = 0
+        errors = []
+
+        for ingredient in queryset:
+            try:
+                suggestion = categorize_ingredient(ingredient)
+                if suggestion:
+                    categorized += 1
+            except CategorizationError as e:
+                errors.append(f"{ingredient.name}: {e}")
+
+        if categorized:
+            msg = f"Created suggestions for {categorized} ingredients."
+            messages.success(request, msg)
+        if errors:
+            messages.error(request, f"Errors: {'; '.join(errors[:3])}")
+        if not categorized and not errors:
+            msg = "No suggestions created (low confidence or already suggested)."
+            messages.info(request, msg)
+
+
+@admin.register(IngredientCategorySuggestion)
+class IngredientCategorySuggestionAdmin(admin.ModelAdmin):
+    list_display = [
+        "ingredient",
+        "suggested_category",
+        "category_hierarchy_display",
+        "confidence_display",
+        "status",
+        "created_at",
+    ]
+    list_filter = ["status", "created_at", "suggested_category"]
+    search_fields = ["ingredient__name", "suggested_category__name"]
+    readonly_fields = [
+        "ingredient",
+        "suggested_category",
+        "confidence",
+        "reasoning",
+        "created_at",
+        "reviewed_at",
+        "reviewed_by",
+    ]
+    ordering = ["-created_at"]
+    actions = ["approve_selected", "reject_selected"]
+
+    fieldsets = [
+        (None, {"fields": ["ingredient", "suggested_category", "status"]}),
+        ("LLM Analysis", {"fields": ["confidence", "reasoning"]}),
+        ("Review", {"fields": ["created_at", "reviewed_at", "reviewed_by"]}),
+    ]
+
+    @admin.display(description="Confidence")
+    def confidence_display(self, obj):
+        """Show confidence as percentage with color coding."""
+        pct = obj.confidence * 100
+        if pct >= 80:
+            color = "green"
+        elif pct >= 50:
+            color = "orange"
+        else:
+            color = "red"
+        pct_str = f"{pct:.0f}%"
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color,
+            pct_str,
+        )
+
+    @admin.display(description="Category Path")
+    def category_hierarchy_display(self, obj):
+        """Show full category path like 'London Dry -> Gin -> Spirits'."""
+        ancestors = list(obj.suggested_category.get_ancestors(include_self=True))
+        return " → ".join(c.name for c in ancestors)
+
+    @admin.action(description="Approve selected suggestions")
+    def approve_selected(self, request, queryset):
+        """Approve selected suggestions and apply categories."""
+        approved = 0
+        pending = queryset.filter(status=IngredientCategorySuggestion.Status.PENDING)
+        for suggestion in pending:
+            suggestion.approve(user=request.user)
+            approved += 1
+        if approved:
+            messages.success(request, f"Approved {approved} suggestions.")
+        else:
+            messages.info(request, "No pending suggestions to approve.")
+
+    @admin.action(description="Reject selected suggestions")
+    def reject_selected(self, request, queryset):
+        """Reject selected suggestions."""
+        rejected = 0
+        pending = queryset.filter(status=IngredientCategorySuggestion.Status.PENDING)
+        for suggestion in pending:
+            suggestion.reject(user=request.user)
+            rejected += 1
+        if rejected:
+            messages.success(request, f"Rejected {rejected} suggestions.")
+        else:
+            messages.info(request, "No pending suggestions to reject.")
