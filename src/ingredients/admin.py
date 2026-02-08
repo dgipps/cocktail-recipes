@@ -353,6 +353,7 @@ class IngredientCategorySuggestionAdmin(admin.ModelAdmin):
         "created_at",
         "reviewed_at",
         "reviewed_by",
+        "status",  # Make status read-only - use actions instead
     ]
     ordering = ["-created_at"]
     actions = ["approve_selected", "reject_selected"]
