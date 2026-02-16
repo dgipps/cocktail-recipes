@@ -1,0 +1,52 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+venv
+ENV
+env
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+.tox
+
+# Build
+*.egg-info
+dist
+build
+
+# Local files
+*.log
+*.sqlite3
+.env
+.env.*
+
+# Media files (uploaded by users)
+media/
+
+# Documentation
+*.md
+docs/
+
+# Terraform
+infra/
+*.tfstate*
+.terraform/
+
+# Claude Code
+.claude/

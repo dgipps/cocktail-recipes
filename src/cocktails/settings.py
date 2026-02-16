@@ -134,19 +134,17 @@ MEDIA_ROOT = BASE_DIR.parent / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Ollama settings for recipe image parsing (two-step approach)
-# Step 1: OCR - Vision model extracts text from image
-# Step 2: Parse - Text LLM parses text into structured JSON
-#
-# OCR models (vision):
-#   - minicpm-v (recommended, best OCR accuracy)
-#   - llama3.2-vision:11b (good accuracy, larger)
-#   - moondream (fast, smaller, less accurate)
-#
-# Parse models (text):
-#   - llama3.2 (recommended, native JSON mode)
-#   - qwen2.5 (excellent structured output)
-#
+# LLM Provider settings
+# Options: "ollama" (local, default) or "gemini" (Google Cloud)
+LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'ollama')
+
+# Gemini settings (used when LLM_PROVIDER=gemini)
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+
+# Ollama settings (used when LLM_PROVIDER=ollama)
+# OCR models (vision): minicpm-v (recommended), llama3.2-vision:11b, moondream
+# Parse models (text): llama3.2 (recommended), qwen2.5
 # Install: ollama pull minicpm-v && ollama pull llama3.2
 OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
 OLLAMA_OCR_MODEL = os.getenv('OLLAMA_OCR_MODEL', 'minicpm-v')

@@ -6,9 +6,9 @@ Uses a hierarchical approach:
 3. Drill down into subcategories until most specific match
 """
 
+import json
 import logging
 
-import ollama
 from django.conf import settings
 from django.db.models import Count
 
@@ -27,7 +27,7 @@ MIN_CONFIDENCE = 0.3
 # Maximum hierarchy depth to traverse
 MAX_DEPTH = 5
 
-# JSON schema for category selection
+# JSON schema for category selection (Ollama format)
 CATEGORY_SCHEMA = {
     "type": "object",
     "properties": {
@@ -83,14 +83,30 @@ class CategorizationError(Exception):
     pass
 
 
+def _get_provider() -> str:
+    """Get the LLM provider to use (ollama or gemini)."""
+    return getattr(settings, "LLM_PROVIDER", "ollama").lower()
+
+
+def _get_gemini_model():
+    """Get configured Gemini model instance."""
+    import google.generativeai as genai
+
+    api_key = getattr(settings, "GEMINI_API_KEY", None)
+    if not api_key:
+        raise CategorizationError("GEMINI_API_KEY not configured")
+
+    genai.configure(api_key=api_key)
+    model_name = getattr(settings, "GEMINI_MODEL", "gemini-2.0-flash")
+    return genai.GenerativeModel(model_name)
+
+
 def get_top_level_categories() -> list[IngredientCategory]:
     """
     Get all root-level categories (those with no parent).
 
     A category is top-level if its only ancestor_link is itself (depth=0).
     """
-    # Categories where the only ancestor link is self (depth=0)
-    # This means no parent categories exist
     top_level_ids = (
         IngredientCategoryAncestor.objects.values("category")
         .annotate(ancestor_count=Count("ancestor"))
@@ -119,14 +135,25 @@ def _format_categories_list(categories: list[IngredientCategory]) -> str:
     """Format categories for prompt display."""
     lines = []
     for cat in categories:
-        # Count ingredients in this category
         count = cat.ingredients.count()
         lines.append(f"- {cat.slug}: {cat.name} ({count} ingredients)")
     return "\n".join(lines)
 
 
 def _call_llm(prompt: str) -> dict:
+    """Call LLM with structured output."""
+    provider = _get_provider()
+
+    if provider == "gemini":
+        return _call_gemini(prompt)
+    else:
+        return _call_ollama(prompt)
+
+
+def _call_ollama(prompt: str) -> dict:
     """Call Ollama LLM with structured output."""
+    import ollama
+
     host = getattr(settings, "OLLAMA_HOST", "http://localhost:11434")
     model = getattr(settings, "OLLAMA_PARSE_MODEL", "llama3.2")
 
@@ -138,15 +165,32 @@ def _call_llm(prompt: str) -> dict:
             format=CATEGORY_SCHEMA,
             options={"temperature": 0.1, "num_predict": 256},
         )
-        import json
-
         content = response["message"]["content"]
         return json.loads(content)
 
-    except ollama.ResponseError as e:
-        raise CategorizationError(f"Ollama API error: {e}") from e
     except Exception as e:
-        raise CategorizationError(f"LLM call failed: {e}") from e
+        raise CategorizationError(f"Ollama call failed: {e}") from e
+
+
+def _call_gemini(prompt: str) -> dict:
+    """Call Gemini LLM with structured output."""
+    try:
+        model = _get_gemini_model()
+        response = model.generate_content(
+            prompt,
+            generation_config={
+                "temperature": 0.1,
+                "max_output_tokens": 256,
+                "response_mime_type": "application/json",
+            },
+        )
+        content = response.text
+        return json.loads(content)
+
+    except json.JSONDecodeError as e:
+        raise CategorizationError(f"Failed to parse JSON: {e}") from e
+    except Exception as e:
+        raise CategorizationError(f"Gemini call failed: {e}") from e
 
 
 def suggest_category_for_ingredient(
@@ -163,7 +207,6 @@ def suggest_category_for_ingredient(
         (category, confidence, reasoning) tuple
         category is None if no good match found
     """
-    # Step 1: Get top-level categories
     top_level = get_top_level_categories()
     if not top_level:
         logger.warning("No top-level categories found")
@@ -171,7 +214,6 @@ def suggest_category_for_ingredient(
 
     logger.info(f"Categorizing '{ingredient.name}' against {len(top_level)} categories")
 
-    # Step 2: Ask LLM to pick top-level category
     prompt = TOP_LEVEL_PROMPT.format(
         ingredient_name=ingredient.name,
         categories_list=_format_categories_list(top_level),
@@ -187,19 +229,16 @@ def suggest_category_for_ingredient(
     if not category_slug:
         return None, confidence, reasoning
 
-    # Find the selected category
     try:
         current_category = IngredientCategory.objects.get(slug=category_slug)
     except IngredientCategory.DoesNotExist:
         logger.warning(f"LLM returned unknown category slug: {category_slug}")
         return None, 0.0, f"Unknown category: {category_slug}"
 
-    # Step 3: Drill down into subcategories
     depth = 0
     while depth < MAX_DEPTH:
         subcategories = get_subcategories(current_category)
         if not subcategories:
-            # No more subcategories - we're at the most specific level
             break
 
         logger.debug(
@@ -221,11 +260,9 @@ def suggest_category_for_ingredient(
         logger.info(f"Subcategory result: {sub_slug} (confidence: {sub_confidence})")
 
         if not sub_slug or sub_slug == "parent":
-            # Stay at current level
             reasoning = sub_reasoning or reasoning
             break
 
-        # Move to subcategory
         try:
             current_category = IngredientCategory.objects.get(slug=sub_slug)
             confidence = sub_confidence
@@ -271,7 +308,6 @@ def categorize_ingredient(
         )
         return None
 
-    # Check for existing pending suggestion for same category
     existing = IngredientCategorySuggestion.objects.filter(
         ingredient=ingredient,
         suggested_category=category,
@@ -282,7 +318,6 @@ def categorize_ingredient(
         logger.info(f"Suggestion exists: '{ingredient.name}' -> '{category.name}'")
         return existing
 
-    # Create new suggestion
     suggestion = IngredientCategorySuggestion.objects.create(
         ingredient=ingredient,
         suggested_category=category,

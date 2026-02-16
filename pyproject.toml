@@ -6,9 +6,18 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "django==6.0.1",
+    "google-generativeai>=0.8.0",
     "ollama>=0.6.1",
     "pillow>=12.1.0",
     "psycopg[binary]>=3.3.2",
+]
+
+[project.optional-dependencies]
+prod = [
+    "gunicorn>=23.0.0",
+    "django-storages[google]>=1.14.0",
+    "google-generativeai>=0.8.0",
+    "google-cloud-secret-manager>=2.20.0",
 ]
 
 [dependency-groups]
@@ -29,7 +38,9 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/cocktails/settings.py" = ["E501"]
+"src/cocktails/settings_prod.py" = ["E501"]
 "**/migrations/*.py" = ["E501"]
+"**/services/*.py" = ["E501"]  # LLM prompts have long lines
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "cocktails.settings"

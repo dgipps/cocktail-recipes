@@ -1,4 +1,4 @@
-"""Three-step recipe image parsing using Ollama.
+"""Three-step recipe image parsing using LLM (Ollama or Gemini).
 
 Step 1: OCR - Vision model extracts text from image
 Step 2: Parse - Text LLM parses text into structured JSON
@@ -11,8 +11,6 @@ import logging
 from difflib import SequenceMatcher
 from pathlib import Path
 
-import httpx
-import ollama
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -62,9 +60,25 @@ Formatting rules:
 - Normalize units: ounce/ounces → oz, teaspoon → tsp, tablespoon → tbsp
 - Keep brand names exactly as written
 - If no page number visible, use null for page
+
+Return ONLY valid JSON matching this structure:
+{{
+  "recipes": [
+    {{
+      "name": "Recipe Name",
+      "page": 123,
+      "ingredients": [
+        {{"amount": "1.5", "unit": "oz", "name": "Ingredient Name"}}
+      ],
+      "method": "Instructions...",
+      "garnish": "Garnish description or null",
+      "notes": "Optional notes or null"
+    }}
+  ]
+}}
 """
 
-# JSON schema for structured output
+# JSON schema for structured output (Ollama format)
 RECIPE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -128,6 +142,24 @@ class ParseError(Exception):
     pass
 
 
+def _get_provider() -> str:
+    """Get the LLM provider to use (ollama or gemini)."""
+    return getattr(settings, "LLM_PROVIDER", "ollama").lower()
+
+
+def _get_gemini_model():
+    """Get configured Gemini model instance."""
+    import google.generativeai as genai
+
+    api_key = getattr(settings, "GEMINI_API_KEY", None)
+    if not api_key:
+        raise ParseError("GEMINI_API_KEY not configured")
+
+    genai.configure(api_key=api_key)
+    model_name = getattr(settings, "GEMINI_MODEL", "gemini-2.0-flash")
+    return genai.GenerativeModel(model_name)
+
+
 def extract_text_from_image(image_path: str | Path) -> str:
     """
     Step 1: Use vision model to OCR the image.
@@ -146,17 +178,36 @@ def extract_text_from_image(image_path: str | Path) -> str:
     if not image_path.exists():
         raise ParseError(f"Image file not found: {image_path}")
 
+    provider = _get_provider()
+    logger.info(f"OCR with provider: {provider}")
+
+    if provider == "gemini":
+        text = _ocr_with_gemini(image_path)
+    else:
+        text = _ocr_with_ollama(image_path)
+
+    logger.info(f"OCR extracted {len(text)} chars")
+    logger.debug(f"OCR text: {text}")
+
+    if not text.strip():
+        raise ParseError("OCR returned empty text")
+
+    return text
+
+
+def _ocr_with_ollama(image_path: Path) -> str:
+    """OCR using Ollama vision model."""
+    import httpx
+
     host = getattr(settings, "OLLAMA_HOST", "http://localhost:11434")
     model = getattr(settings, "OLLAMA_OCR_MODEL", "minicpm-v")
 
-    logger.info(f"OCR with {model}: {image_path}")
+    logger.info(f"OCR with Ollama {model}: {image_path}")
 
     try:
-        # Read and encode image
         with open(image_path, "rb") as f:
             img_base64 = base64.b64encode(f.read()).decode()
 
-        # Use httpx for direct API call (more reliable with vision models)
         with httpx.Client(timeout=180) as http_client:
             response = http_client.post(
                 f"{host}/api/generate",
@@ -169,20 +220,31 @@ def extract_text_from_image(image_path: str | Path) -> str:
                 },
             )
             response.raise_for_status()
-            text = response.json()["response"]
+            return response.json()["response"]
 
-    except httpx.HTTPStatusError as e:
-        raise ParseError(f"Ollama HTTP error during OCR: {e}") from e
     except Exception as e:
-        raise ParseError(f"Failed to connect to Ollama for OCR: {e}") from e
+        raise ParseError(f"Ollama OCR failed: {e}") from e
 
-    logger.info(f"OCR extracted {len(text)} chars")
-    logger.debug(f"OCR text: {text}")
 
-    if not text.strip():
-        raise ParseError("OCR returned empty text")
+def _ocr_with_gemini(image_path: Path) -> str:
+    """OCR using Google Gemini vision model."""
+    from PIL import Image
 
-    return text
+    logger.info(f"OCR with Gemini: {image_path}")
+
+    try:
+        model = _get_gemini_model()
+        image = Image.open(image_path)
+
+        response = model.generate_content(
+            [OCR_PROMPT, image],
+            generation_config={"temperature": 0.1, "max_output_tokens": 8192},
+        )
+
+        return response.text
+
+    except Exception as e:
+        raise ParseError(f"Gemini OCR failed: {e}") from e
 
 
 def parse_recipe_text(text: str) -> dict:
@@ -193,28 +255,43 @@ def parse_recipe_text(text: str) -> dict:
         text: Raw OCR text from the image.
 
     Returns:
-        Parsed recipe data dict with structure:
-        {
-            "recipes": [
-                {
-                    "name": str,
-                    "page": int | None,
-                    "ingredients": [{"amount": str, "unit": str, "name": str}],
-                    "method": str,
-                    "garnish": str | None,
-                    "notes": str | None
-                }
-            ]
-        }
+        Parsed recipe data dict.
 
     Raises:
         ParseError: If parsing fails or returns invalid data.
     """
+    provider = _get_provider()
+    logger.info(f"Parsing text with provider: {provider}")
+
+    if provider == "gemini":
+        parsed = _parse_with_gemini(text)
+    else:
+        parsed = _parse_with_ollama(text)
+
+    # Validate structure
+    if not isinstance(parsed, dict):
+        raise ParseError(f"Expected dict, got {type(parsed).__name__}")
+
+    if "recipes" not in parsed:
+        raise ParseError("Response missing 'recipes' key")
+
+    if not isinstance(parsed["recipes"], list):
+        raise ParseError("'recipes' must be a list")
+
+    for i, recipe in enumerate(parsed["recipes"]):
+        _validate_recipe(recipe, i)
+
+    return parsed
+
+
+def _parse_with_ollama(text: str) -> dict:
+    """Parse recipe text using Ollama."""
+    import ollama
+
     host = getattr(settings, "OLLAMA_HOST", "http://localhost:11434")
     model = getattr(settings, "OLLAMA_PARSE_MODEL", "llama3.2")
 
-    logger.info(f"Parsing text with {model}")
-
+    logger.info(f"Parsing with Ollama {model}")
     prompt = PARSE_PROMPT.format(extracted_text=text)
 
     try:
@@ -227,36 +304,43 @@ def parse_recipe_text(text: str) -> dict:
         )
         content = response["message"]["content"]
 
-    except ollama.ResponseError as e:
-        raise ParseError(f"Ollama API error during parse: {e}") from e
     except Exception as e:
-        raise ParseError(f"Failed to connect to Ollama for parsing: {e}") from e
+        raise ParseError(f"Ollama parse failed: {e}") from e
 
-    logger.info(f"Parse response: {len(content)} chars")
     logger.debug(f"Parse response: {content}")
 
-    # Parse the JSON response
     try:
-        parsed = json.loads(content)
+        return json.loads(content)
     except json.JSONDecodeError as e:
-        msg = f"Failed to parse JSON response: {e}\nContent: {content[:500]}"
-        raise ParseError(msg) from e
+        raise ParseError(f"Failed to parse JSON: {e}\nContent: {content[:500]}") from e
 
-    # Validate structure
-    if not isinstance(parsed, dict):
-        raise ParseError(f"Expected dict, got {type(parsed).__name__}")
 
-    if "recipes" not in parsed:
-        raise ParseError("Response missing 'recipes' key")
+def _parse_with_gemini(text: str) -> dict:
+    """Parse recipe text using Gemini."""
+    logger.info("Parsing with Gemini")
+    prompt = PARSE_PROMPT.format(extracted_text=text)
 
-    if not isinstance(parsed["recipes"], list):
-        raise ParseError("'recipes' must be a list")
+    try:
+        model = _get_gemini_model()
+        response = model.generate_content(
+            prompt,
+            generation_config={
+                "temperature": 0.1,
+                "max_output_tokens": 8192,
+                "response_mime_type": "application/json",
+            },
+        )
+        content = response.text
 
-    # Validate each recipe
-    for i, recipe in enumerate(parsed["recipes"]):
-        _validate_recipe(recipe, i)
+    except Exception as e:
+        raise ParseError(f"Gemini parse failed: {e}") from e
 
-    return parsed
+    logger.debug(f"Parse response: {content}")
+
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError as e:
+        raise ParseError(f"Failed to parse JSON: {e}\nContent: {content[:500]}") from e
 
 
 def match_ingredients(parsed_data: dict) -> dict:
@@ -273,16 +357,11 @@ def match_ingredients(parsed_data: dict) -> dict:
     Returns:
         Updated parsed_data with corrected ingredient names and matching_log.
     """
-    # Import here to avoid circular imports
     from ingredients.models import Ingredient
 
-    # Initialize matching log
     matching_log = []
 
-    # Get all existing ingredient names
-    existing_ingredients = list(
-        Ingredient.objects.values_list("name", flat=True)
-    )
+    existing_ingredients = list(Ingredient.objects.values_list("name", flat=True))
 
     if not existing_ingredients:
         logger.info("No existing ingredients in database, skipping matching")
@@ -291,11 +370,7 @@ def match_ingredients(parsed_data: dict) -> dict:
 
     logger.info(f"Matching against {len(existing_ingredients)} existing ingredients")
 
-    # Build a lookup for case-insensitive matching
     name_lookup = {name.lower(): name for name in existing_ingredients}
-
-    host = getattr(settings, "OLLAMA_HOST", "http://localhost:11434")
-    model = getattr(settings, "OLLAMA_PARSE_MODEL", "llama3.2")
 
     for recipe in parsed_data.get("recipes", []):
         recipe_name = recipe.get("name", "Unknown")
@@ -329,7 +404,6 @@ def match_ingredients(parsed_data: dict) -> dict:
 
             if not candidates:
                 log_entry["status"] = "no_match"
-                # Uppercase for consistency with DB convention
                 ingredient["name"] = parsed_name.upper()
                 logger.info(
                     f"[{recipe_name}] No match found for: '{parsed_name}' "
@@ -338,7 +412,6 @@ def match_ingredients(parsed_data: dict) -> dict:
                 matching_log.append(log_entry)
                 continue
 
-            # Log candidates being checked
             logger.debug(
                 f"[{recipe_name}] Checking '{parsed_name}' against candidates: "
                 f"{[(c, f'{s:.0%}') for c, s in candidates]}"
@@ -352,9 +425,7 @@ def match_ingredients(parsed_data: dict) -> dict:
                     "similarity": round(similarity, 3),
                 })
 
-                is_match = _verify_ingredient_match(
-                    parsed_name, candidate_name, host, model
-                )
+                is_match = _verify_ingredient_match(parsed_name, candidate_name)
 
                 if is_match:
                     logger.info(
@@ -375,7 +446,6 @@ def match_ingredients(parsed_data: dict) -> dict:
 
             if not matched:
                 log_entry["status"] = "no_match"
-                # Uppercase for consistency with DB convention
                 ingredient["name"] = parsed_name.upper()
                 logger.info(
                     f"[{recipe_name}] No match confirmed for: '{parsed_name}' "
@@ -384,7 +454,6 @@ def match_ingredients(parsed_data: dict) -> dict:
 
             matching_log.append(log_entry)
 
-    # Summary logging
     exact = sum(1 for e in matching_log if e["status"] == "exact_match")
     fuzzy = sum(1 for e in matching_log if e["status"] == "fuzzy_matched")
     no_match = sum(1 for e in matching_log if e["status"] == "no_match")
@@ -404,53 +473,38 @@ def _find_fuzzy_matches(
     threshold: float = MATCH_THRESHOLD,
     max_candidates: int = 3,
 ) -> list[tuple[str, float]]:
-    """
-    Find existing ingredient names that fuzzy-match the parsed name.
-
-    Args:
-        parsed_name: The ingredient name from OCR/parsing.
-        existing_names: List of existing ingredient names in database.
-        threshold: Minimum similarity ratio (0-1) to include.
-        max_candidates: Maximum number of candidates to return.
-
-    Returns:
-        List of (name, similarity) tuples, sorted by similarity descending.
-    """
+    """Find existing ingredient names that fuzzy-match the parsed name."""
     matches = []
     parsed_lower = parsed_name.lower()
 
     for existing_name in existing_names:
         existing_lower = existing_name.lower()
-
-        # Calculate similarity ratio
         ratio = SequenceMatcher(None, parsed_lower, existing_lower).ratio()
 
         if ratio >= threshold:
             matches.append((existing_name, ratio))
 
-    # Sort by similarity descending and take top candidates
     matches.sort(key=lambda x: x[1], reverse=True)
     return matches[:max_candidates]
 
 
-def _verify_ingredient_match(
-    parsed_name: str,
-    existing_name: str,
-    host: str,
-    model: str,
-) -> bool:
-    """
-    Use LLM to verify if two ingredient names refer to the same ingredient.
+def _verify_ingredient_match(parsed_name: str, existing_name: str) -> bool:
+    """Use LLM to verify if two ingredient names refer to the same ingredient."""
+    provider = _get_provider()
 
-    Args:
-        parsed_name: The ingredient name from OCR/parsing.
-        existing_name: A candidate match from the database.
-        host: Ollama host URL.
-        model: Model to use for verification.
+    if provider == "gemini":
+        return _verify_with_gemini(parsed_name, existing_name)
+    else:
+        return _verify_with_ollama(parsed_name, existing_name)
 
-    Returns:
-        True if LLM confirms they are the same ingredient.
-    """
+
+def _verify_with_ollama(parsed_name: str, existing_name: str) -> bool:
+    """Verify ingredient match using Ollama."""
+    import ollama
+
+    host = getattr(settings, "OLLAMA_HOST", "http://localhost:11434")
+    model = getattr(settings, "OLLAMA_PARSE_MODEL", "llama3.2")
+
     prompt = INGREDIENT_MATCH_PROMPT.format(
         parsed_name=parsed_name,
         existing_name=existing_name,
@@ -476,6 +530,32 @@ def _verify_ingredient_match(
         return False
 
 
+def _verify_with_gemini(parsed_name: str, existing_name: str) -> bool:
+    """Verify ingredient match using Gemini."""
+    prompt = INGREDIENT_MATCH_PROMPT.format(
+        parsed_name=parsed_name,
+        existing_name=existing_name,
+    )
+
+    try:
+        model = _get_gemini_model()
+        response = model.generate_content(
+            prompt,
+            generation_config={"temperature": 0.1, "max_output_tokens": 10},
+        )
+        answer = response.text.strip().lower()
+        is_match = answer.startswith("yes")
+        logger.info(
+            f"LLM verify '{parsed_name}' vs '{existing_name}': "
+            f"answer='{answer}' → {is_match}"
+        )
+        return is_match
+
+    except Exception as e:
+        logger.warning(f"Gemini verification failed for '{parsed_name}': {e}")
+        return False
+
+
 def parse_recipe_image(image_path: str | Path) -> tuple[str, dict]:
     """
     Parse a recipe image using three-step approach.
@@ -495,15 +575,9 @@ def parse_recipe_image(image_path: str | Path) -> tuple[str, dict]:
     Raises:
         ParseError: If OCR or parsing fails.
     """
-    # Step 1: OCR
     raw_text = extract_text_from_image(image_path)
-
-    # Step 2: Parse
     parsed = parse_recipe_text(raw_text)
-
-    # Step 3: Match ingredients against database
     parsed = match_ingredients(parsed)
-
     return raw_text, parsed
 
 
