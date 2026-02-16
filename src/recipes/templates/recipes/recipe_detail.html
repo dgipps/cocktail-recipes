@@ -1,0 +1,52 @@
+{% extends "recipes/base.html" %}
+
+{% block title %}{{ recipe.name }} - Cocktails{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <h1>{{ recipe.name }}</h1>
+        {% if recipe.source or recipe.page %}
+        <p><small>
+            {% if recipe.source %}{{ recipe.source }}{% endif %}
+            {% if recipe.source and recipe.page %}, {% endif %}
+            {% if recipe.page %}p. {{ recipe.page }}{% endif %}
+        </small></p>
+        {% endif %}
+    </header>
+
+    <h2>Ingredients</h2>
+    <ul>
+        {% for ri in recipe.recipe_ingredients.all %}
+        <li>
+            {% if ri.amount %}{{ ri.display_amount }}{% endif %}
+            {% if ri.unit %}{{ ri.unit }}{% endif %}
+            <strong>{{ ri.ingredient.name }}</strong>
+            {% if ri.optional %}<em>(optional)</em>{% endif %}
+            {% if ri.notes %}<small>- {{ ri.notes }}</small>{% endif %}
+        </li>
+        {% empty %}
+        <li><em>No ingredients listed</em></li>
+        {% endfor %}
+    </ul>
+
+    {% if recipe.method %}
+    <h2>Method</h2>
+    <p>{{ recipe.method }}</p>
+    {% endif %}
+
+    {% if recipe.garnish %}
+    <h2>Garnish</h2>
+    <p>{{ recipe.garnish }}</p>
+    {% endif %}
+
+    {% if recipe.notes %}
+    <h2>Notes</h2>
+    <p>{{ recipe.notes }}</p>
+    {% endif %}
+
+    <footer>
+        <a href="{% url 'recipe_list' %}">&larr; Back to all recipes</a>
+    </footer>
+</article>
+{% endblock %}

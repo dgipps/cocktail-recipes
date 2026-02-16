@@ -1,0 +1,22 @@
+{% extends "recipes/base.html" %}
+
+{% block title %}All Recipes - Cocktails{% endblock %}
+
+{% block content %}
+<h1>Recipes</h1>
+
+<div class="search-box">
+    <input type="search"
+           name="q"
+           placeholder="Search recipes..."
+           value="{{ search }}"
+           hx-get="{% url 'recipe_list' %}"
+           hx-trigger="input changed delay:300ms, search"
+           hx-target="#results"
+           hx-push-url="true">
+</div>
+
+<div id="results">
+    {% include "recipes/partials/recipe_results.html" %}
+</div>
+{% endblock %}

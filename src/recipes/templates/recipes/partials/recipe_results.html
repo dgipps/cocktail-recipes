@@ -1,0 +1,14 @@
+<p class="recipe-count">{{ recipes|length }} recipe{{ recipes|length|pluralize }}</p>
+
+<div class="recipe-grid">
+    {% for recipe in recipes %}
+    <article class="recipe-card">
+        <h3><a href="{% url 'recipe_detail' recipe.slug %}">{{ recipe.name }}</a></h3>
+        <div class="ingredients">
+            {% for ri in recipe.recipe_ingredients.all|slice:":6" %}{% if ri.amount %}{{ ri.display_amount }} {% endif %}{% if ri.unit %}{{ ri.unit }} {% endif %}{{ ri.ingredient.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if recipe.recipe_ingredients.count > 6 %}...{% endif %}
+        </div>
+    </article>
+    {% empty %}
+    <p>No recipes found.</p>
+    {% endfor %}
+</div>
