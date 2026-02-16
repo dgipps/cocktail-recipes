@@ -1,0 +1,27 @@
+# Copy this to terraform.tfvars and fill in values
+# DO NOT commit terraform.tfvars to version control
+
+project_id = "your-gcp-project-id"
+region     = "northamerica-northeast1"
+app_name   = "cocktails"
+
+# Database
+db_tier = "db-f1-micro"  # Smallest instance, ~$10/month
+db_name = "cocktails"
+
+# Cloud Run scaling
+cloud_run_min_instances = 0  # Scale to zero when idle
+cloud_run_max_instances = 2
+
+# Container image (leave empty for initial deploy, update after building)
+container_image = ""
+
+# Secrets (REQUIRED - generate secure values)
+# Generate Django key: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+django_secret_key = "your-django-secret-key-here"
+
+# Get from https://aistudio.google.com/app/apikey
+gemini_api_key = "your-gemini-api-key-here"
+
+# Optional: custom domain
+domain = ""
