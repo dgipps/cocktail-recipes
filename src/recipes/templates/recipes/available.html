@@ -1,0 +1,24 @@
+{% extends "recipes/base.html" %}
+
+{% block title %}Available Recipes - Cocktails{% endblock %}
+
+{% block content %}
+<h1>Available Recipes</h1>
+
+<div class="search-box">
+    <select name="depth"
+            hx-get="{% url 'available_recipes' %}"
+            hx-trigger="change"
+            hx-target="#results"
+            hx-push-url="true">
+        <option value="0" {% if max_depth == 0 %}selected{% endif %}>Exact match only</option>
+        <option value="1" {% if max_depth == 1 %}selected{% endif %}>Same category</option>
+        <option value="2" {% if max_depth == 2 %}selected{% endif %}>Parent category</option>
+        <option value="3" {% if max_depth == 3 %}selected{% endif %}>Any ancestor</option>
+    </select>
+</div>
+
+<div id="results">
+    {% include "recipes/partials/available_results.html" %}
+</div>
+{% endblock %}

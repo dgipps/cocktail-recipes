@@ -66,6 +66,15 @@
             font-size: 0.9rem;
             margin-bottom: 1rem;
         }
+        .ing-exact {
+            color: #2e7d32;
+        }
+        .ing-category {
+            color: #f57c00;
+        }
+        .ing-missing {
+            color: #c62828;
+        }
     </style>
 </head>
 <body>
@@ -76,6 +85,7 @@
             </ul>
             <ul>
                 <li><a href="{% url 'recipe_list' %}">All Recipes</a></li>
+                <li><a href="{% url 'available_recipes' %}">Available</a></li>
             </ul>
         </nav>
     </header>

@@ -1,0 +1,21 @@
+<p class="recipe-count">{{ recipes|length }} recipe{{ recipes|length|pluralize }}</p>
+
+<div class="recipe-grid">
+    {% for recipe in recipes %}
+    <article class="recipe-card">
+        <h3><a href="{% url 'recipe_detail' recipe.slug %}">{{ recipe.name }}</a></h3>
+        <ul class="ingredients">
+            {% for ri in recipe.recipe_ingredients.all|slice:":6" %}
+            <li class="{% if ri.ingredient.id in exact_match_ids %}ing-exact{% elif ri.ingredient.id in category_match_ids %}ing-category{% else %}ing-missing{% endif %}">{% if ri.amount %}{{ ri.display_amount }} {% endif %}{% if ri.unit %}{{ ri.unit }} {% endif %}<strong>{{ ri.ingredient.name }}</strong></li>
+            {% endfor %}
+        </ul>
+        {% with extra=recipe.recipe_ingredients.count|add:"-6" %}
+        {% if extra > 0 %}
+        <div class="more-ingredients">+ {{ extra }} more ingredient{{ extra|pluralize }}</div>
+        {% endif %}
+        {% endwith %}
+    </article>
+    {% empty %}
+    <p>No recipes available with your current inventory.</p>
+    {% endfor %}
+</div>
