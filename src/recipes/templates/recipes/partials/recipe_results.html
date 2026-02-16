@@ -4,9 +4,16 @@
     {% for recipe in recipes %}
     <article class="recipe-card">
         <h3><a href="{% url 'recipe_detail' recipe.slug %}">{{ recipe.name }}</a></h3>
-        <div class="ingredients">
-            {% for ri in recipe.recipe_ingredients.all|slice:":6" %}{% if ri.amount %}{{ ri.display_amount }} {% endif %}{% if ri.unit %}{{ ri.unit }} {% endif %}{{ ri.ingredient.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if recipe.recipe_ingredients.count > 6 %}...{% endif %}
-        </div>
+        <ul class="ingredients">
+            {% for ri in recipe.recipe_ingredients.all|slice:":6" %}
+            <li>{% if ri.amount %}{{ ri.display_amount }} {% endif %}{% if ri.unit %}{{ ri.unit }} {% endif %}<strong>{{ ri.ingredient.name }}</strong></li>
+            {% endfor %}
+        </ul>
+        {% with extra=recipe.recipe_ingredients.count|add:"-6" %}
+        {% if extra > 0 %}
+        <div class="more-ingredients">+ {{ extra }} more ingredient{{ extra|pluralize }}</div>
+        {% endif %}
+        {% endwith %}
     </article>
     {% empty %}
     <p>No recipes found.</p>

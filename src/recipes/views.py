@@ -1,5 +1,6 @@
 """Frontend views for recipes."""
 
+from django.contrib.postgres.search import TrigramSimilarity
 from django.shortcuts import get_object_or_404, render
 
 from .models import Recipe
@@ -7,13 +8,20 @@ from .models import Recipe
 
 def recipe_list(request):
     """Display all recipes with search functionality."""
-    recipes = Recipe.objects.prefetch_related(
-        "recipe_ingredients__ingredient"
-    ).order_by("name")
-
     search = request.GET.get("q", "")
+
     if search:
-        recipes = recipes.filter(name__icontains=search)
+        # Fuzzy search using trigram similarity
+        recipes = (
+            Recipe.objects.prefetch_related("recipe_ingredients__ingredient")
+            .annotate(similarity=TrigramSimilarity("name", search))
+            .filter(similarity__gte=0.2)
+            .order_by("-similarity", "name")
+        )
+    else:
+        recipes = Recipe.objects.prefetch_related(
+            "recipe_ingredients__ingredient"
+        ).order_by("name")
 
     # HTMX partial response for search
     if request.headers.get("HX-Request"):

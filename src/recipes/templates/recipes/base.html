@@ -9,11 +9,11 @@
     <style>
         .recipe-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 1rem;
         }
         .recipe-card {
-            height: 120px;
+            height: 240px;
             overflow: hidden;
             padding: 0.75rem;
             border: 1px solid var(--pico-muted-border-color);
@@ -27,10 +27,33 @@
         .recipe-card h3 a {
             text-decoration: none;
         }
-        .recipe-card .ingredients {
-            font-size: 0.85rem;
+        .recipe-card ul.ingredients {
+            font-size: 0.8rem;
             color: var(--pico-muted-color);
-            line-height: 1.4;
+            line-height: 1.3;
+            list-style: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        .recipe-card ul.ingredients li {
+            margin: 0;
+            padding: 0;
+            list-style: none !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .recipe-card ul.ingredients li::before {
+            content: none !important;
+        }
+        .recipe-card ul.ingredients li strong {
+            font-weight: 600;
+        }
+        .recipe-card .more-ingredients {
+            font-size: 0.8rem;
+            color: var(--pico-muted-color);
+            font-style: italic;
+            margin-top: 0.25rem;
         }
         .search-box {
             margin-bottom: 1.5rem;
