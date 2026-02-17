@@ -206,7 +206,7 @@ def create_recipe_from_data(
     Returns:
         Created Recipe instance.
     """
-    name = recipe_data.get("name", "Untitled")
+    name = recipe_data.get("name") or "Untitled"
     base_slug = slugify(name)[:50]
     slug = generate_unique_slug(base_slug)
 
@@ -215,13 +215,13 @@ def create_recipe_from_data(
         slug=slug,
         source=source,
         page=recipe_data.get("page"),
-        method=recipe_data.get("method", ""),
-        garnish=recipe_data.get("garnish", ""),
+        method=recipe_data.get("method") or "",
+        garnish=recipe_data.get("garnish") or "",
     )
 
     # Create recipe ingredients
     for order, ing_data in enumerate(recipe_data.get("ingredients", [])):
-        ingredient, _ = get_or_create_ingredient(ing_data.get("name", "Unknown"))
+        ingredient, _ = get_or_create_ingredient(ing_data.get("name") or "Unknown")
 
         # Parse amount and unit, handling combined formats like "1.5 oz"
         amount, unit = parse_amount_and_unit(
@@ -262,7 +262,7 @@ def update_recipe_from_data(
     recipe.recipe_ingredients.all().delete()
 
     for order, ing_data in enumerate(recipe_data.get("ingredients", [])):
-        ingredient, _ = get_or_create_ingredient(ing_data.get("name", "Unknown"))
+        ingredient, _ = get_or_create_ingredient(ing_data.get("name") or "Unknown")
 
         # Parse amount and unit, handling combined formats like "1.5 oz"
         amount, unit = parse_amount_and_unit(
