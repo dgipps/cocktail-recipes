@@ -20,24 +20,29 @@ WORKDIR /app
 # Create non-root user
 RUN useradd --create-home appuser
 
-# Copy virtual environment from builder
-COPY --from=builder /app/.venv /app/.venv
+# Copy virtual environment from builder (with correct ownership)
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
 
 # Set PATH to use virtual environment
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Copy application code
-COPY src/ ./src/
+# Copy application code (with correct ownership)
+COPY --chown=appuser:appuser src/ ./src/
 
 # Set Django settings module
 ENV DJANGO_SETTINGS_MODULE=cocktails.settings_prod
 ENV PYTHONPATH=/app/src
 
-# Collect static files (will be uploaded to GCS on deploy)
-# This step requires env vars, so we skip it in build and do it in entrypoint
-# RUN python src/manage.py collectstatic --noinput
+# Create static files directory
+RUN mkdir -p /app/staticfiles && chown appuser:appuser /app/staticfiles
+
+# Collect static files (using dummy secrets for build - WhiteNoise needs this)
+RUN DJANGO_SECRET_KEY=build-secret \
+    DB_NAME=x DB_USER=x DB_PASSWORD=x \
+    GEMINI_API_KEY=x \
+    python src/manage.py collectstatic --noinput
 
 # Switch to non-root user
 USER appuser

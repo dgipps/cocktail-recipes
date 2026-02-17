@@ -9,6 +9,9 @@ import os
 
 from .settings import *  # noqa: F401, F403
 
+# Add WhiteNoise middleware for static files (must be after SecurityMiddleware)
+MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")  # noqa: F405
+
 # Security settings
 DEBUG = False
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
@@ -51,29 +54,30 @@ LLM_PROVIDER = "gemini"
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
 
-# Static files - Google Cloud Storage
+# Storage configuration
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "cocktails-storage")
+
 STORAGES = {
+    # Media files (user uploads) - use GCS with public URLs (no signing)
     "default": {
         "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
         "OPTIONS": {
-            "bucket_name": os.environ.get("GCS_BUCKET_NAME", "cocktails-media"),
+            "bucket_name": GCS_BUCKET_NAME,
+            "querystring_auth": False,  # Use public URLs, don't sign
         },
     },
+    # Static files - use WhiteNoise (bundled with container)
     "staticfiles": {
-        "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
-        "OPTIONS": {
-            "bucket_name": os.environ.get("GCS_BUCKET_NAME", "cocktails-static"),
-        },
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
 
-# Static files URL
-GCS_STATIC_BUCKET = os.environ.get("GCS_BUCKET_NAME", "cocktails-static")
-STATIC_URL = f"https://storage.googleapis.com/{GCS_STATIC_BUCKET}/"
+# Static files - served by WhiteNoise from container
+STATIC_URL = "/static/"
+STATIC_ROOT = "/app/staticfiles"
 
-# Media files URL
-GCS_MEDIA_BUCKET = os.environ.get("GCS_BUCKET_NAME", "cocktails-media")
-MEDIA_URL = f"https://storage.googleapis.com/{GCS_MEDIA_BUCKET}/"
+# Media files URL - public GCS bucket
+MEDIA_URL = f"https://storage.googleapis.com/{GCS_BUCKET_NAME}/"
 
 # Logging
 LOGGING = {
