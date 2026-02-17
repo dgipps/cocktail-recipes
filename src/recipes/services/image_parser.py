@@ -160,12 +160,12 @@ def _get_gemini_model():
     return genai.GenerativeModel(model_name)
 
 
-def extract_text_from_image(image_path: str | Path) -> str:
+def extract_text_from_image(image_data: bytes | str | Path) -> str:
     """
     Step 1: Use vision model to OCR the image.
 
     Args:
-        image_path: Path to the image file.
+        image_data: Image as bytes, or a path to the image file.
 
     Returns:
         Raw text extracted from the image.
@@ -173,18 +173,20 @@ def extract_text_from_image(image_path: str | Path) -> str:
     Raises:
         ParseError: If OCR fails.
     """
-    image_path = Path(image_path)
-
-    if not image_path.exists():
-        raise ParseError(f"Image file not found: {image_path}")
+    if isinstance(image_data, (str, Path)):
+        image_path = Path(image_data)
+        if not image_path.exists():
+            raise ParseError(f"Image file not found: {image_path}")
+        with open(image_path, "rb") as f:
+            image_data = f.read()
 
     provider = _get_provider()
     logger.info(f"OCR with provider: {provider}")
 
     if provider == "gemini":
-        text = _ocr_with_gemini(image_path)
+        text = _ocr_with_gemini(image_data)
     else:
-        text = _ocr_with_ollama(image_path)
+        text = _ocr_with_ollama(image_data)
 
     logger.info(f"OCR extracted {len(text)} chars")
     logger.debug(f"OCR text: {text}")
@@ -195,18 +197,17 @@ def extract_text_from_image(image_path: str | Path) -> str:
     return text
 
 
-def _ocr_with_ollama(image_path: Path) -> str:
+def _ocr_with_ollama(image_data: bytes) -> str:
     """OCR using Ollama vision model."""
     import httpx
 
     host = getattr(settings, "OLLAMA_HOST", "http://localhost:11434")
     model = getattr(settings, "OLLAMA_OCR_MODEL", "minicpm-v")
 
-    logger.info(f"OCR with Ollama {model}: {image_path}")
+    logger.info(f"OCR with Ollama {model}")
 
     try:
-        with open(image_path, "rb") as f:
-            img_base64 = base64.b64encode(f.read()).decode()
+        img_base64 = base64.b64encode(image_data).decode()
 
         with httpx.Client(timeout=180) as http_client:
             response = http_client.post(
@@ -226,15 +227,17 @@ def _ocr_with_ollama(image_path: Path) -> str:
         raise ParseError(f"Ollama OCR failed: {e}") from e
 
 
-def _ocr_with_gemini(image_path: Path) -> str:
+def _ocr_with_gemini(image_data: bytes) -> str:
     """OCR using Google Gemini vision model."""
+    import io
+
     from PIL import Image
 
-    logger.info(f"OCR with Gemini: {image_path}")
+    logger.info("OCR with Gemini")
 
     try:
         model = _get_gemini_model()
-        image = Image.open(image_path)
+        image = Image.open(io.BytesIO(image_data))
 
         response = model.generate_content(
             [OCR_PROMPT, image],
@@ -556,7 +559,7 @@ def _verify_with_gemini(parsed_name: str, existing_name: str) -> bool:
         return False
 
 
-def parse_recipe_image(image_path: str | Path) -> tuple[str, dict]:
+def parse_recipe_image(image_data: bytes | str | Path) -> tuple[str, dict]:
     """
     Parse a recipe image using three-step approach.
 
@@ -565,7 +568,7 @@ def parse_recipe_image(image_path: str | Path) -> tuple[str, dict]:
     Step 3: Match - Fuzzy match ingredients against database
 
     Args:
-        image_path: Path to the image file.
+        image_data: Image as bytes, or a path to the image file.
 
     Returns:
         Tuple of (raw_ocr_text, parsed_data) where:
@@ -575,7 +578,7 @@ def parse_recipe_image(image_path: str | Path) -> tuple[str, dict]:
     Raises:
         ParseError: If OCR or parsing fails.
     """
-    raw_text = extract_text_from_image(image_path)
+    raw_text = extract_text_from_image(image_data)
     parsed = parse_recipe_text(raw_text)
     parsed = match_ingredients(parsed)
     return raw_text, parsed

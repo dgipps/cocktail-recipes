@@ -268,8 +268,9 @@ class RecipeImportAdmin(admin.ModelAdmin):
     def _parse_import(self, recipe_import: RecipeImport) -> None:
         """Parse a single import using Ollama (two-step: OCR then parse)."""
         try:
-            image_path = recipe_import.source_image.path
-            raw_text, parsed = parse_recipe_image(image_path)
+            with recipe_import.source_image.open("rb") as f:
+                image_bytes = f.read()
+            raw_text, parsed = parse_recipe_image(image_bytes)
             recipe_import.raw_ocr_text = raw_text
             recipe_import.parsed_data = parsed
             recipe_import.status = RecipeImport.Status.PARSED
