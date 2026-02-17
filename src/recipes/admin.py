@@ -300,7 +300,7 @@ class RecipeImportAdmin(admin.ModelAdmin):
         """Show names of parsed recipes."""
         if not obj.parsed_data or "recipes" not in obj.parsed_data:
             return "-"
-        names = [r.get("name", "?") for r in obj.parsed_data["recipes"][:3]]
+        names = [r.get("name") or "?" for r in obj.parsed_data["recipes"][:3]]
         result = ", ".join(names)
         if len(obj.parsed_data["recipes"]) > 3:
             result += f" (+{len(obj.parsed_data['recipes']) - 3} more)"
