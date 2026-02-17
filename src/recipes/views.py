@@ -10,6 +10,7 @@ from inventory.models import UserInventory
 from .models import Recipe
 
 
+@login_required
 def recipe_list(request):
     """Display all recipes with search functionality."""
     search = request.GET.get("q", "")
@@ -42,6 +43,7 @@ def recipe_list(request):
     )
 
 
+@login_required
 def recipe_detail(request, slug):
     """Display a single recipe with full details."""
     recipe = get_object_or_404(
