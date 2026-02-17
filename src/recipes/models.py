@@ -330,7 +330,7 @@ class RecipeImport(models.Model):
 
     def __str__(self):
         if self.parsed_data and "recipes" in self.parsed_data:
-            names = [r.get("name", "?") for r in self.parsed_data["recipes"][:3]]
+            names = [r.get("name") or "?" for r in self.parsed_data["recipes"][:3]]
             return f"{', '.join(names)} ({self.status})"
         return f"Import {self.pk} ({self.status})"
 
