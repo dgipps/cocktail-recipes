@@ -20,7 +20,7 @@ MATCH_THRESHOLD = 0.6
 
 # OCR prompt - focused on accurate text extraction
 OCR_PROMPT = """\
-Read all text visible in this cocktail recipe image.
+Read ALL text visible in this cocktail recipe image. Transcribe everything completely.
 
 Guidelines:
 - Transcribe text exactly as written, paying close attention to brand names
@@ -29,7 +29,12 @@ Guidelines:
 - Include ALL ingredients, even those with small amounts like "1 dash" or "1 drop"
 - Include ingredients without amounts (e.g., "CLUB SODA", "DRY CHAMPAGNE")
 - Include countable ingredients (e.g., "1 EGG WHITE", "2 STRAWBERRIES")
-- Preserve recipe names, measurements, and instructions accurately
+- CRITICAL: Include the METHOD / preparation instructions for every recipe. These are
+  sentences like "Shake with ice and strain...", "Combine all ingredients...", "Stir with
+  ice...", "Build in the glass..." that appear after the ingredient list. Do NOT skip them.
+- Include any notes or instructions that appear before the ingredient list (e.g.,
+  "CINNAMON-SUGAR RIM", "SERVED OVER CRUSHED ICE")
+- Include GARNISH lines
 """
 
 # Parse prompt - structured extraction from OCR text
@@ -40,13 +45,23 @@ Ignore headers, page numbers, and non-recipe content.
 Text:
 {extracted_text}
 
+RECIPE STRUCTURE - each recipe follows this order:
+1. Recipe name (e.g. "THE GIFT SHOP")
+2. Creator and/or year, optional (e.g. "THOMAS WAUGH, 2011") → ignore, not part of recipe data
+3. Pre-ingredient note, optional (e.g. "CINNAMON-SUGAR RIM (PAGE 283)", "SERVED OVER CRUSHED ICE")
+   → capture in "notes" field; do NOT treat as an ingredient
+4. Ingredients list — lines that start with an amount (number or fraction)
+5. Method — preparation instructions (e.g. "Combine all ingredients...", "Shake with ice...", "Stir...")
+   → always capture this in the "method" field; do NOT skip it
+6. Garnish — typically prefixed with "GARNISH:" → capture in "garnish" field
+
 CRITICAL - Ingredient parsing:
 - Extract EVERY ingredient, including small amounts (1 dash, 1 drop, etc.)
 - Ingredient names may span multiple lines. If a line has NO amount/number at the start,
   it is a CONTINUATION of the previous ingredient name. Combine them.
   Example: "1½ OUNCES BARBADILLO PRINCIPÉ" followed by "AMONTILLADO SHERRY"
   → This is ONE ingredient: "1.5 oz Barbadillo Principé Amontillado Sherry"
-- A new ingredient always starts with an amount (number) OR is a standalone ingredient
+- A new ingredient always starts with an amount (number) OR is a standalone topper/filler
 
 IMPORTANT - Handle these special ingredient types:
 1. Countable items without units: "1 EGG WHITE" → amount: "1", unit: "whole", name: "Egg White"
