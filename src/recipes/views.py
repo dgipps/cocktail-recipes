@@ -2,9 +2,10 @@
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import TrigramSimilarity
+from django.db.models import Max
 from django.shortcuts import get_object_or_404, render
 
-from ingredients.models import Ingredient, IngredientCategoryAncestor
+from ingredients.models import Ingredient, IngredientCategory, IngredientCategoryAncestor
 from inventory.models import UserInventory
 
 from .models import Recipe
@@ -14,6 +15,7 @@ from .models import Recipe
 def recipe_list(request):
     """Display all recipes with search functionality."""
     search = request.GET.get("q", "")
+    cat = request.GET.get("cat", "")
 
     if search:
         # Fuzzy search using trigram similarity
@@ -28,6 +30,32 @@ def recipe_list(request):
             "recipe_ingredients__ingredient"
         ).order_by("name")
 
+    categories = (
+        IngredientCategory.objects
+        .annotate(max_depth=Max("ancestor_links__depth"))
+        .filter(max_depth__in=[1, 2])
+        .order_by("name")
+    )
+
+    selected_cat = None
+    if cat:
+        selected_cat = IngredientCategory.objects.filter(name__iexact=cat).first()
+        if selected_cat:
+            cat_ids = IngredientCategoryAncestor.objects.filter(
+                ancestor=selected_cat
+            ).values_list("category_id", flat=True)
+            recipes = recipes.filter(
+                recipe_ingredients__ingredient__categories__in=cat_ids
+            ).distinct()
+
+    context = {
+        "recipes": recipes,
+        "search": search,
+        "cat": cat,
+        "categories": categories,
+        "selected_category": selected_cat,
+    }
+
     # HTMX partial response for search
     if request.headers.get("HX-Request"):
         return render(
@@ -36,11 +64,7 @@ def recipe_list(request):
             {"recipes": recipes},
         )
 
-    return render(
-        request,
-        "recipes/recipe_list.html",
-        {"recipes": recipes, "search": search},
-    )
+    return render(request, "recipes/recipe_list.html", context)
 
 
 @login_required
