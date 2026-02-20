@@ -90,7 +90,7 @@
     hx-get="{% url 'admin:ingredients_ingredient_add_similar' %}?source_id={{ source.pk }}"
     hx-trigger="input changed delay:350ms"
     hx-target="#search-results"
-    hx-include="[name='name']"
+    hx-include="#name-input"
     hx-indicator="#search-indicator"
   >
   <div id="search-indicator" class="htmx-indicator">Searching...</div>
