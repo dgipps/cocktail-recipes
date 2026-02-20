@@ -1,8 +1,10 @@
 from django.contrib import admin, messages
+from django.contrib.postgres.search import TrigramSimilarity
 from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path
 from django.utils.html import format_html, format_html_join, mark_safe
+from django.utils.text import slugify
 
 from inventory.models import UserInventory
 
@@ -193,6 +195,11 @@ class IngredientAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.manage_inventory_view),
                 name="ingredients_ingredient_manage_inventory",
             ),
+            path(
+                "add-similar/",
+                self.admin_site.admin_view(self.add_similar_view),
+                name="ingredients_ingredient_add_similar",
+            ),
         ]
         return custom_urls + urls
 
@@ -277,6 +284,82 @@ class IngredientAdmin(admin.ModelAdmin):
         }
         return render(
             request, "admin/ingredients/ingredient/manage_inventory.html", context
+        )
+
+    @staticmethod
+    def _unique_slug(name):
+        base = slugify(name)
+        slug = base
+        n = 2
+        while Ingredient.objects.filter(slug=slug).exists():
+            slug = f"{base}-{n}"
+            n += 1
+        return slug
+
+    def add_similar_view(self, request):
+        """Add a new ingredient similar to an existing one (same categories)."""
+        source = get_object_or_404(Ingredient, pk=request.GET.get("source_id") or request.POST.get("source_id"))
+
+        # HTMX live search
+        if request.method == "GET" and request.headers.get("HX-Request"):
+            name = request.GET.get("name", "").strip()
+            results = []
+            if name:
+                results = (
+                    Ingredient.objects.annotate(similarity=TrigramSimilarity("name", name))
+                    .filter(similarity__gte=0.15)
+                    .prefetch_related("categories")
+                    .order_by("-similarity")[:8]
+                )
+            return render(
+                request,
+                "admin/ingredients/ingredient/partials/similar_search_results.html",
+                {"results": results, "name": name, "source": source},
+            )
+
+        if request.method == "POST":
+            action = request.POST.get("action")
+
+            if action == "add_existing":
+                ingredient_id = request.POST.get("ingredient_id")
+                UserInventory.objects.update_or_create(
+                    user=request.user,
+                    ingredient_id=ingredient_id,
+                    defaults={"in_stock": True},
+                )
+                messages.success(request, "Ingredient added to your inventory.")
+                return redirect("admin:ingredients_ingredient_manage_inventory")
+
+            if action == "create":
+                name = request.POST.get("name", "").strip()
+                if not name:
+                    messages.error(request, "Please enter a name for the new ingredient.")
+                else:
+                    slug = self._unique_slug(name)
+                    new_ing = Ingredient.objects.create(
+                        name=name,
+                        slug=slug,
+                        needs_categorization=False,
+                    )
+                    new_ing.categories.set(source.categories.all())
+                    UserInventory.objects.get_or_create(
+                        user=request.user,
+                        ingredient=new_ing,
+                        defaults={"in_stock": True},
+                    )
+                    messages.success(request, f'Created "{name}" and added it to your inventory.')
+                    return redirect("admin:ingredients_ingredient_manage_inventory")
+
+        context = {
+            **self.admin_site.each_context(request),
+            "source": source,
+            "title": "Add Similar Ingredient",
+            "opts": self.model._meta,
+        }
+        return render(
+            request,
+            "admin/ingredients/ingredient/add_similar.html",
+            context,
         )
 
     def get_categories(self, obj):

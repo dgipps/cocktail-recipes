@@ -3,6 +3,7 @@
 
 {% block extrahead %}
 {{ block.super }}
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
 <style>
   .inventory-stats {
     background: #f8f9fa;
@@ -102,6 +103,19 @@
     font-size: 11px;
     margin: 2px;
   }
+  .btn-add-similar {
+    padding: 4px 10px;
+    background: #6c757d;
+    color: white !important;
+    border-radius: 4px;
+    font-size: 12px;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .btn-add-similar:hover {
+    background: #545b62;
+    color: white !important;
+  }
 </style>
 {% endblock %}
 
@@ -161,6 +175,7 @@
       <th>Ingredient</th>
       <th>Categories</th>
       <th>Status</th>
+      <th></th>
     </tr>
   </thead>
   <tbody>
@@ -187,10 +202,13 @@
           {% endif %}
         </form>
       </td>
+      <td>
+        <a href="{% url 'admin:ingredients_ingredient_add_similar' %}?source_id={{ ingredient.pk }}" class="btn-add-similar">Add Similar</a>
+      </td>
     </tr>
     {% empty %}
     <tr>
-      <td colspan="3">No ingredients found matching your criteria.</td>
+      <td colspan="4">No ingredients found matching your criteria.</td>
     </tr>
     {% endfor %}
   </tbody>

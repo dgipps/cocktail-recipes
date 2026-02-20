@@ -1,0 +1,104 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+<style>
+  .source-info {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+  }
+  .source-info h2 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    color: #333;
+  }
+  .category-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #e9ecef;
+    border-radius: 10px;
+    font-size: 11px;
+    margin: 2px;
+  }
+  .search-section {
+    margin-bottom: 20px;
+  }
+  .search-section label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 6px;
+  }
+  .search-section input[type="text"] {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 350px;
+    font-size: 14px;
+  }
+  #search-results {
+    margin-top: 15px;
+  }
+  .htmx-indicator {
+    display: none;
+    color: #666;
+    font-style: italic;
+    margin-top: 8px;
+  }
+  .htmx-request .htmx-indicator {
+    display: block;
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_label|capfirst }}</a>
+  &rsaquo; <a href="{% url 'admin:ingredients_ingredient_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; <a href="{% url 'admin:ingredients_ingredient_manage_inventory' %}">Manage Inventory</a>
+  &rsaquo; {% translate 'Add Similar' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Add Similar Ingredient</h1>
+
+<div class="source-info">
+  <h2>Based on: {{ source.name }}</h2>
+  <div>
+    <strong>Categories to copy:</strong>
+    {% for cat in source.categories.all %}
+      <span class="category-tag">{{ cat.name }}</span>
+    {% empty %}
+      <em>No categories</em>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="search-section">
+  <label for="name-input">New ingredient name</label>
+  <input
+    type="text"
+    name="name"
+    id="name-input"
+    placeholder="Start typing to search existing ingredients..."
+    autocomplete="off"
+    hx-get="{% url 'admin:ingredients_ingredient_add_similar' %}?source_id={{ source.pk }}"
+    hx-trigger="input changed delay:350ms"
+    hx-target="#search-results"
+    hx-include="[name='name']"
+    hx-indicator="#search-indicator"
+  >
+  <div id="search-indicator" class="htmx-indicator">Searching...</div>
+</div>
+
+<div id="search-results"></div>
+
+<p style="margin-top: 30px;">
+  <a href="{% url 'admin:ingredients_ingredient_manage_inventory' %}">&laquo; Back to Manage Inventory</a>
+</p>
+{% endblock %}

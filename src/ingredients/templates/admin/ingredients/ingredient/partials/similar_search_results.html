@@ -1,0 +1,117 @@
+{% load i18n %}
+<style>
+  .results-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 20px 0;
+  }
+  .results-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    background: #fff;
+  }
+  .results-list li:hover {
+    background: #f9f9f9;
+  }
+  .result-info .result-name {
+    font-weight: bold;
+  }
+  .result-info .result-cats {
+    font-size: 11px;
+    color: #666;
+    margin-top: 2px;
+  }
+  .category-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #e9ecef;
+    border-radius: 10px;
+    font-size: 11px;
+    margin: 1px;
+  }
+  .btn-add-inv {
+    padding: 5px 12px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .btn-add-inv:hover {
+    background: #218838;
+  }
+  .btn-create {
+    padding: 8px 18px;
+    background: #417690;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .btn-create:hover {
+    background: #205067;
+  }
+  .no-results-msg {
+    color: #555;
+    font-style: italic;
+    margin-bottom: 15px;
+  }
+  .results-hint {
+    color: #555;
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  .create-section {
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+  }
+</style>
+
+{% if name %}
+  {% if results %}
+    <p class="results-hint">Existing ingredients matching "{{ name }}" — click "Add to Inventory" if one fits, or create a new one below.</p>
+    <ul class="results-list">
+      {% for ing in results %}
+      <li>
+        <div class="result-info">
+          <div class="result-name">{{ ing.name }}</div>
+          <div class="result-cats">
+            {% for cat in ing.categories.all %}
+              <span class="category-tag">{{ cat.name }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        <form method="post" action="{% url 'admin:ingredients_ingredient_add_similar' %}?source_id={{ source.pk }}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_existing">
+          <input type="hidden" name="ingredient_id" value="{{ ing.pk }}">
+          <button type="submit" class="btn-add-inv">Add to Inventory</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="no-results-msg">No existing ingredients match "{{ name }}".</p>
+  {% endif %}
+
+  <div class="create-section">
+    <p style="margin: 0 0 10px 0;"><strong>Create "{{ name }}"</strong> with the same categories as {{ source.name }}?</p>
+    <form method="post" action="{% url 'admin:ingredients_ingredient_add_similar' %}?source_id={{ source.pk }}">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create">
+      <input type="hidden" name="source_id" value="{{ source.pk }}">
+      <input type="hidden" name="name" value="{{ name }}">
+      <button type="submit" class="btn-create">Create "{{ name }}"</button>
+    </form>
+  </div>
+{% endif %}
