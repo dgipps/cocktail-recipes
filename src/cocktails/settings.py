@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     # Local apps
+    'accounts',
     'ingredients',
     'recipes',
     'inventory',
@@ -133,6 +134,10 @@ MEDIA_ROOT = BASE_DIR.parent / 'media'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+LOGIN_URL = "/accounts/login/"
+LOGIN_REDIRECT_URL = "/recipes/"
+LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 # LLM Provider settings
 # Options: "ollama" (local, default) or "gemini" (Google Cloud)

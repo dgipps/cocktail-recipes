@@ -1,0 +1,38 @@
+{% extends "recipes/base.html" %}
+
+{% block title %}Log In — Cocktails{% endblock %}
+
+{% block content %}
+<div style="max-width:400px;margin:3rem auto;">
+    <article>
+        <header><h2>Log In</h2></header>
+        <form method="post">
+            {% csrf_token %}
+            {% if next %}
+                <input type="hidden" name="next" value="{{ next }}">
+            {% endif %}
+
+            <label for="id_username">Username</label>
+            <input type="text" id="id_username" name="username" autocomplete="username" autofocus required
+                   value="{{ form.username.value|default:'' }}"
+                   {% if form.username.errors %}aria-invalid="true"{% endif %}>
+            {% for error in form.username.errors %}
+                <small class="error">{{ error }}</small>
+            {% endfor %}
+
+            <label for="id_password">Password</label>
+            <input type="password" id="id_password" name="password" autocomplete="current-password" required
+                   {% if form.non_field_errors %}aria-invalid="true"{% endif %}>
+
+            {% for error in form.non_field_errors %}
+                <small class="error">{{ error }}</small>
+            {% endfor %}
+
+            <button type="submit" style="width:100%;">Log In</button>
+        </form>
+        <footer>
+            <small>Don't have an account? <a href="{% url 'signup' %}">Sign up</a></small>
+        </footer>
+    </article>
+</div>
+{% endblock %}

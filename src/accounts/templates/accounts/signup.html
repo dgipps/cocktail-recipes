@@ -1,0 +1,48 @@
+{% extends "recipes/base.html" %}
+
+{% block title %}Sign Up — Cocktails{% endblock %}
+
+{% block content %}
+<div style="max-width:400px;margin:3rem auto;">
+    <article>
+        <header><h2>Sign Up</h2></header>
+        <form method="post">
+            {% csrf_token %}
+
+            <label for="id_username">Username</label>
+            <input type="text" id="id_username" name="username" autocomplete="username" autofocus
+                   maxlength="150" required
+                   value="{{ form.username.value|default:'' }}"
+                   {% if form.username.errors %}aria-invalid="true"{% endif %}>
+            {% for error in form.username.errors %}
+                <small class="error">{{ error }}</small>
+            {% endfor %}
+
+            <label for="id_password1">Password</label>
+            <input type="password" id="id_password1" name="password1" autocomplete="new-password" required
+                   {% if form.password1.errors %}aria-invalid="true"{% endif %}>
+            {% for error in form.password1.errors %}
+                <small class="error">{{ error }}</small>
+            {% endfor %}
+
+            <label for="id_password2">Confirm Password</label>
+            <input type="password" id="id_password2" name="password2" autocomplete="new-password" required
+                   {% if form.password2.errors %}aria-invalid="true"{% endif %}>
+            {% for error in form.password2.errors %}
+                <small class="error">{{ error }}</small>
+            {% endfor %}
+
+            {% if form.non_field_errors %}
+                {% for error in form.non_field_errors %}
+                    <small class="error">{{ error }}</small>
+                {% endfor %}
+            {% endif %}
+
+            <button type="submit" style="width:100%;">Create Account</button>
+        </form>
+        <footer>
+            <small>Already have an account? <a href="{% url 'login' %}">Log in</a></small>
+        </footer>
+    </article>
+</div>
+{% endblock %}

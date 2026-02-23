@@ -89,6 +89,18 @@
             <ul>
                 <li><a href="{% url 'recipe_list' %}">All Recipes</a></li>
                 <li><a href="{% url 'available_recipes' %}">Available</a></li>
+                {% if user.is_authenticated %}
+                <li>
+                    <form method="post" action="{% url 'logout' %}" style="display:contents;">
+                        {% csrf_token %}
+                        <button type="submit" style="background:none;border:none;padding:var(--pico-nav-element-spacing-vertical) var(--pico-nav-element-spacing-horizontal);margin:0;color:var(--pico-contrast);font:inherit;cursor:pointer;">
+                            Log out ({{ user.username }})
+                        </button>
+                    </form>
+                </li>
+                {% else %}
+                <li><a href="{% url 'login' %}">Log in</a></li>
+                {% endif %}
             </ul>
         </nav>
     </header>
