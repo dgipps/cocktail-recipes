@@ -151,6 +151,27 @@ Answer with ONLY "yes" or "no".
 """
 
 
+TASTE_TAGS_PROMPT = """\
+Given this cocktail:
+Name: {name}
+Ingredients: {ingredients}
+Method: {method}
+
+Select all applicable taste tags from this list:
+- citrusy: Bright citrus notes (lemon, lime, orange, grapefruit juice or zest)
+- smoky: Smoky or peaty flavors (mezcal, peated scotch, lapsang souchong)
+- strong: Spirit-forward, high ABV (Old Fashioned, Negroni style — ≥2 oz base spirit, minimal dilution)
+- low_abv: Low alcohol (aperitivo spritzes, wine/beer cocktails, <1 oz total spirit)
+- bitter: Prominent bitter flavors (amaro, Campari, Aperol, Cynar, bitters-heavy)
+- refreshing: Light, effervescent or cooling (soda/tonic topped, mint, cucumber)
+- sweet: Noticeably sweet or dessert-like (liqueur-heavy, cream, chocolate)
+
+Respond with ONLY a JSON array of slugs, e.g. ["citrusy", "refreshing"]
+"""
+
+VALID_TASTE_TAG_SLUGS = {"citrusy", "smoky", "strong", "low_abv", "bitter", "refreshing", "sweet"}
+
+
 class ParseError(Exception):
     """Raised when image parsing fails."""
 
@@ -597,6 +618,75 @@ def parse_recipe_image(image_data: bytes | str | Path) -> tuple[str, dict]:
     parsed = parse_recipe_text(raw_text)
     parsed = match_ingredients(parsed)
     return raw_text, parsed
+
+
+def suggest_taste_tags(recipe_data: dict) -> list[str]:
+    """
+    Use LLM to suggest taste tag slugs for a recipe.
+
+    Args:
+        recipe_data: Dict with keys: name, ingredients, method
+
+    Returns:
+        List of valid slug strings from VALID_TASTE_TAG_SLUGS.
+    """
+    name = recipe_data.get("name", "")
+    ingredients = ", ".join(
+        ing.get("name", "") for ing in recipe_data.get("ingredients", []) if ing.get("name")
+    )
+    method = recipe_data.get("method", "")
+
+    prompt = TASTE_TAGS_PROMPT.format(name=name, ingredients=ingredients, method=method)
+    provider = _get_provider()
+
+    if provider == "gemini":
+        raw = _suggest_tags_with_gemini(prompt)
+    else:
+        raw = _suggest_tags_with_ollama(prompt)
+
+    # Parse and validate slugs
+    slugs = [s for s in raw if s in VALID_TASTE_TAG_SLUGS]
+    logger.info(f"Suggested taste tags for '{name}': {slugs}")
+    return slugs
+
+
+def _suggest_tags_with_ollama(prompt: str) -> list[str]:
+    """Call Ollama to get taste tag suggestions."""
+    import ollama
+
+    host = getattr(settings, "OLLAMA_HOST", "http://localhost:11434")
+    model = getattr(settings, "OLLAMA_PARSE_MODEL", "llama3.2")
+
+    try:
+        client = ollama.Client(host=host)
+        response = client.chat(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0.1, "num_predict": 100},
+        )
+        content = response["message"]["content"].strip()
+        return json.loads(content)
+    except Exception as e:
+        logger.warning(f"Ollama taste tag suggestion failed: {e}")
+        return []
+
+
+def _suggest_tags_with_gemini(prompt: str) -> list[str]:
+    """Call Gemini to get taste tag suggestions."""
+    try:
+        model = _get_gemini_model()
+        response = model.generate_content(
+            prompt,
+            generation_config={
+                "temperature": 0.1,
+                "max_output_tokens": 100,
+                "response_mime_type": "application/json",
+            },
+        )
+        return json.loads(response.text.strip())
+    except Exception as e:
+        logger.warning(f"Gemini taste tag suggestion failed: {e}")
+        return []
 
 
 def _validate_recipe(recipe: dict, index: int) -> None:

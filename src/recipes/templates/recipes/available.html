@@ -10,13 +10,33 @@
             hx-get="{% url 'available_recipes' %}"
             hx-trigger="change"
             hx-target="#results"
-            hx-push-url="true">
+            hx-push-url="true"
+            hx-include="[name='tags']">
         <option value="0" {% if max_depth == 0 %}selected{% endif %}>Exact match only</option>
         <option value="1" {% if max_depth == 1 %}selected{% endif %}>Same category</option>
         <option value="2" {% if max_depth == 2 %}selected{% endif %}>Parent category</option>
         <option value="3" {% if max_depth == 3 %}selected{% endif %}>Any ancestor</option>
     </select>
 </div>
+
+{% if all_tags %}
+<div class="tag-filters">
+  {% for tag in all_tags %}
+  <label>
+    <input type="checkbox"
+           name="tags"
+           value="{{ tag.slug }}"
+           {% if tag.slug in selected_tags %}checked{% endif %}
+           hx-get="{% url 'available_recipes' %}"
+           hx-trigger="change"
+           hx-target="#results"
+           hx-push-url="true"
+           hx-include="[name='depth'], [name='tags']">
+    {{ tag.name }}
+  </label>
+  {% endfor %}
+</div>
+{% endif %}
 
 <div id="results">
     {% include "recipes/partials/available_results.html" %}

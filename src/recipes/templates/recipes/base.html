@@ -57,12 +57,109 @@
         }
         .filter-row {
             display: flex;
-            gap: 1rem;
+            flex-wrap: wrap;
+            gap: 0.75rem;
             margin-bottom: 1.5rem;
+            align-items: flex-start;
         }
-        .filter-row input {
+        .filter-row input:not([type="checkbox"]):not([type="radio"]) {
+            flex: 1 1 200px;
+            min-width: 160px;
             margin-bottom: 0;
-            flex: 1;
+        }
+        /* Custom tag dropdown */
+        .tag-dropdown {
+            position: relative;
+            flex: 1 1 200px;
+            min-width: 160px;
+        }
+        .tag-dropdown-toggle {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            background-color: var(--pico-form-element-background-color);
+            color: var(--pico-form-element-placeholder-color);
+            border: var(--pico-border-width) solid var(--pico-form-element-border-color);
+            border-radius: var(--pico-border-radius);
+            padding: var(--pico-form-element-spacing-vertical) var(--pico-form-element-spacing-horizontal);
+            font-size: 1rem;
+            font-weight: normal;
+            cursor: pointer;
+            margin: 0;
+            box-shadow: none;
+            text-align: left;
+            line-height: var(--pico-line-height);
+        }
+        .tag-dropdown-toggle:hover,
+        .tag-dropdown-toggle:focus {
+            background-color: var(--pico-form-element-background-color);
+            border-color: var(--pico-form-element-active-border-color);
+            color: var(--pico-form-element-placeholder-color);
+            box-shadow: none;
+        }
+        .tag-dropdown-toggle.has-selection {
+            color: var(--pico-form-element-color);
+        }
+        .tag-dropdown-toggle.has-selection:hover,
+        .tag-dropdown-toggle.has-selection:focus {
+            color: var(--pico-form-element-color);
+        }
+        .tag-dropdown-arrow {
+            display: inline-block;
+            flex-shrink: 0;
+            font-style: normal;
+            transition: transform 0.15s ease;
+            line-height: 1;
+        }
+        .tag-dropdown-toggle[aria-expanded="true"] .tag-dropdown-arrow {
+            transform: rotate(180deg);
+        }
+        .tag-dropdown-panel {
+            position: absolute;
+            top: calc(100% + 2px);
+            left: 0;
+            right: 0;
+            min-width: 180px;
+            background-color: var(--pico-background-color);
+            border: var(--pico-border-width) solid var(--pico-form-element-border-color);
+            border-radius: var(--pico-border-radius);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            z-index: 200;
+            padding: 0.5rem;
+        }
+        .tag-dropdown-options {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 0.25rem;
+        }
+        .tag-option {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.3rem 0.4rem;
+            margin: 0;
+            border-radius: calc(var(--pico-border-radius) / 2);
+            cursor: pointer;
+            font-weight: normal;
+        }
+        .tag-option:hover {
+            background-color: var(--pico-muted-background-color);
+        }
+        .tag-option input[type="checkbox"] {
+            flex-shrink: 0;
+            margin: 0;
+        }
+        .tag-dropdown-clear {
+            display: block;
+            width: 100%;
+            margin: 0;
+            margin-top: 0.4rem;
+            padding: 0.3rem 0.5rem;
+            font-size: 0.85rem;
+            border-top: 1px solid var(--pico-muted-border-color);
+            padding-top: 0.4rem;
         }
         .recipe-count {
             color: var(--pico-muted-color);

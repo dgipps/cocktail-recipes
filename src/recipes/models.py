@@ -14,6 +14,17 @@ from .measurements import (
 )
 
 
+class TasteTag(models.Model):
+    slug = models.SlugField(unique=True)
+    name = models.CharField(max_length=50, unique=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Recipe(models.Model):
     """
     A cocktail recipe.
@@ -45,6 +56,7 @@ class Recipe(models.Model):
         blank=True,
         help_text="Additional notes about the recipe",
     )
+    taste_tags = models.ManyToManyField("TasteTag", blank=True, related_name="recipes")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -298,6 +310,11 @@ class RecipeImport(models.Model):
         null=True,
         blank=True,
         help_text="Parsed recipe data from AI",
+    )
+
+    # Taste tag suggestions from LLM (editable before approval)
+    suggested_taste_tags = models.ManyToManyField(
+        "TasteTag", blank=True, related_name="recipe_imports"
     )
 
     # Link to created recipe (after approval)

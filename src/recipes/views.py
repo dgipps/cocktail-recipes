@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, render
 from ingredients.models import Ingredient, IngredientCategory, IngredientCategoryAncestor
 from inventory.models import UserInventory
 
-from .models import Recipe
+from .models import Recipe, TasteTag
 
 
 @login_required
@@ -16,6 +16,7 @@ def recipe_list(request):
     """Display all recipes with search functionality."""
     search = request.GET.get("q", "")
     cat = request.GET.get("cat", "")
+    tags = request.GET.getlist("tags")
 
     if search:
         # Fuzzy search using trigram similarity
@@ -48,12 +49,20 @@ def recipe_list(request):
                 recipe_ingredients__ingredient__categories__in=cat_ids
             ).distinct()
 
+    if tags:
+        recipes = recipes.filter(taste_tags__slug__in=tags).distinct()
+
+    all_tags = TasteTag.objects.all()
+    selected_tags = set(tags)
+
     context = {
         "recipes": recipes,
         "search": search,
         "cat": cat,
         "categories": categories,
         "selected_category": selected_cat,
+        "all_tags": all_tags,
+        "selected_tags": selected_tags,
     }
 
     # HTMX partial response for search
@@ -121,15 +130,22 @@ def available_recipes(request):
 
     max_depth = int(request.GET.get("depth", 1))
     max_depth = max(0, min(3, max_depth))  # Clamp to 0-3
+    tags = request.GET.getlist("tags")
 
     recipes = get_makeable_recipes(request.user, max_depth=max_depth).prefetch_related(
         "recipe_ingredients__ingredient"
     )
 
+    if tags:
+        recipes = recipes.filter(taste_tags__slug__in=tags).distinct()
+
     # Get match sets for color-coding
     exact_match_ids, category_match_ids = _get_ingredient_match_sets(
         request.user, max_depth
     )
+
+    all_tags = TasteTag.objects.all()
+    selected_tags = set(tags)
 
     # HTMX partial response
     if request.headers.get("HX-Request"):
@@ -151,5 +167,7 @@ def available_recipes(request):
             "max_depth": max_depth,
             "exact_match_ids": exact_match_ids,
             "category_match_ids": category_match_ids,
+            "all_tags": all_tags,
+            "selected_tags": selected_tags,
         },
     )
