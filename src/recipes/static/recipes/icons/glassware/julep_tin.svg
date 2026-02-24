@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-  <!-- Tin body: notably wider at top (tapered) -->
-  <path d="M7 3L25 3L23 29L9 29Z"/>
+  <!-- Body: wide at top, narrows toward base -->
+  <path d="M6 3L26 3L22 27L10 27Z"/>
   <!-- Rim band -->
-  <line x1="7" y1="6" x2="25" y2="6"/>
-  <!-- Ribbing bands -->
-  <line x1="8.5" y1="15" x2="23.5" y2="15"/>
+  <line x1="6" y1="6" x2="26" y2="6"/>
+  <!-- Ribbing bands (follow the taper) -->
+  <line x1="7.5" y1="14" x2="24.5" y2="14"/>
   <line x1="9" y1="21" x2="23" y2="21"/>
-  <!-- Handle (D-curve on right) -->
-  <path d="M23 10C27 10 27 20 23 20"/>
+  <!-- Base foot (slightly wider than the cup bottom) -->
+  <path d="M9 27L8 30L24 30L23 27"/>
 </svg>
