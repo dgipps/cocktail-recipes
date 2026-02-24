@@ -113,6 +113,38 @@ class TestApproveImportCreatesRecipes:
         assert recipes[0].source == "Death & Co"
 
 
+class TestFindMatchingRecipe:
+    """Tests for the slug-based fallback in find_matching_recipe."""
+
+    def test_matches_by_exact_name(self, db):
+        from recipes.services.import_processor import find_matching_recipe
+
+        Recipe.objects.create(name="Gin Sour", slug="gin-sour")
+        assert find_matching_recipe("Gin Sour") is not None
+
+    def test_matches_case_insensitive(self, db):
+        from recipes.services.import_processor import find_matching_recipe
+
+        Recipe.objects.create(name="Gin Sour", slug="gin-sour")
+        assert find_matching_recipe("gin sour") is not None
+
+    def test_matches_unicode_apostrophe_variant(self, db):
+        """Curly ' and straight ' both slugify to the same slug."""
+        from recipes.services.import_processor import find_matching_recipe
+
+        # Original stored with curly right single quote (U+2019)
+        Recipe.objects.create(name="Bee\u2019s Knees", slug="bees-knees")
+        # Import produces straight apostrophe
+        result = find_matching_recipe("Bee's Knees")
+        assert result is not None
+        assert result.slug == "bees-knees"
+
+    def test_no_match_returns_none(self, db):
+        from recipes.services.import_processor import find_matching_recipe
+
+        assert find_matching_recipe("Nonexistent Recipe") is None
+
+
 class TestApproveImportUpdatesExistingRecipes:
     def test_existing_recipe_updated_not_duplicated(self, db, import_single):
         Recipe.objects.create(name="Gin Sour", slug="gin-sour", method="Old method")
@@ -143,6 +175,26 @@ class TestApproveImportUpdatesExistingRecipes:
         )
         approve_import(import_single, source="New Source")
         assert Recipe.objects.get(name="Gin Sour").source == "Original Source"
+
+    def test_unicode_apostrophe_variant_updates_not_duplicates(self, db):
+        """Import with straight apostrophe should update the curly-apostrophe original."""
+        Recipe.objects.create(name="Bee\u2019s Knees", slug="bees-knees", method="Old")
+        ri = RecipeImport.objects.create(
+            source_image="",
+            status=RecipeImport.Status.PARSED,
+            parsed_data={
+                "recipes": [
+                    {
+                        "name": "Bee's Knees",  # straight apostrophe from OCR
+                        "method": "Shake and strain",
+                        "ingredients": [{"name": "Gin", "amount": "2", "unit": "oz"}],
+                    }
+                ]
+            },
+        )
+        approve_import(ri)
+        assert Recipe.objects.filter(slug__startswith="bees-knees").count() == 1
+        assert Recipe.objects.get(slug="bees-knees").method == "Shake and strain"
 
     def test_multi_import_updates_existing_and_creates_new(self, db, import_multi):
         Recipe.objects.create(name="Negroni", slug="negroni", method="Old method")

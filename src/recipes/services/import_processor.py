@@ -281,8 +281,17 @@ def update_recipe_from_data(
 
 
 def find_matching_recipe(name: str) -> Recipe | None:
-    """Find an existing recipe that matches by name."""
-    return Recipe.objects.filter(name__iexact=name).first()
+    """
+    Find an existing recipe that matches by name or derived slug.
+
+    The slug fallback handles OCR/LLM apostrophe variations (e.g. curly ' vs
+    straight ') that produce the same slug but fail an iexact name comparison.
+    """
+    recipe = Recipe.objects.filter(name__iexact=name).first()
+    if recipe:
+        return recipe
+    slug = slugify(name)[:50]
+    return Recipe.objects.filter(slug=slug).first()
 
 
 @transaction.atomic
