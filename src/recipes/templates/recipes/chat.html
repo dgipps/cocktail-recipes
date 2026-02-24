@@ -1,0 +1,164 @@
+{% extends "recipes/base.html" %}
+
+{% block title %}Recommendation - Cocktails{% endblock %}
+
+{% block head %}
+<style>
+  /* Make body + main fill the full viewport for the chat layout */
+  body:has(.chat-page) {
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+  }
+  body:has(.chat-page) main.container {
+    overflow: hidden;
+    min-height: 0;
+    padding-block: 0;
+  }
+
+  /* Outer container fills its grid row */
+  .chat-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding-block: 0;
+  }
+
+  /* Welcome area: centered when no messages, collapses when messages arrive */
+  .chat-welcome {
+    overflow: hidden;
+    max-height: 50vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4rem 1rem 2.5rem;
+    transition: max-height 0.4s ease, opacity 0.3s ease, padding 0.25s ease;
+  }
+  .chat-welcome h2 { margin-bottom: 0.25rem; }
+  .chat-welcome p  { color: var(--pico-muted-color); margin: 0; font-size: 0.95rem; }
+
+  .chat-page.has-messages .chat-welcome {
+    max-height: 0;
+    opacity: 0;
+    padding: 0;
+  }
+
+  /* Scrollable messages area */
+  #chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 0.5rem 0 0.75rem;
+  }
+
+  /* Input bar pinned at the bottom */
+  .chat-input-bar {
+    flex-shrink: 0;
+    padding: 0.75rem 0 0.75rem;
+    border-top: 1px solid var(--pico-muted-border-color);
+    background: var(--pico-background-color);
+  }
+  .chat-compose {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .chat-compose input[type="text"] {
+    flex: 1;
+    margin: 0;
+  }
+  .chat-compose button[type="submit"] {
+    margin: 0;
+    flex-shrink: 0;
+    width: auto;
+    padding-inline: 1.25rem;
+  }
+  .chat-options-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.4rem;
+  }
+  .chat-depth-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    margin: 0;
+    cursor: pointer;
+  }
+  .chat-depth-label input { margin: 0; }
+  .chat-clear-btn {
+    font-size: 0.85rem;
+    padding: 0.2rem 0.75rem;
+    margin: 0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chat-page" id="chat-page">
+
+  <div class="chat-welcome">
+    <h2>What are you in the mood for?</h2>
+    <p>Describe what you're craving — I'll find cocktails you can make right now.</p>
+  </div>
+
+  <div id="chat-messages"></div>
+
+  <div class="chat-input-bar">
+    <form id="chat-form"
+          hx-post="{% url 'chat_message' %}"
+          hx-target="#chat-messages"
+          hx-swap="beforeend"
+          hx-indicator="#chat-spinner"
+          hx-on::after-request="this.reset(); this.querySelector('[name=message]').focus()">
+      {% csrf_token %}
+      <div class="chat-compose">
+        <input type="text" name="message"
+               placeholder="e.g. Something smoky and strong, or a light summer drink…"
+               autocomplete="off" required autofocus>
+        <button type="submit">Send</button>
+        <span id="chat-spinner" class="htmx-indicator">…</span>
+      </div>
+      <div class="chat-options-row">
+        <label class="chat-depth-label">
+          <input type="checkbox" name="depth" value="2">
+          Allow major substitutions
+        </label>
+        <button type="button" class="chat-clear-btn outline secondary"
+                hx-post="{% url 'chat_clear' %}"
+                hx-target="#chat-messages"
+                hx-swap="innerHTML"
+                hx-on::after-request="document.getElementById('chat-page').classList.remove('has-messages')">
+          Clear
+        </button>
+      </div>
+    </form>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var page = document.getElementById('chat-page');
+  var msgs = document.getElementById('chat-messages');
+
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (e.target !== msgs || msgs.children.length === 0) return;
+    page.classList.add('has-messages');
+    // Scroll latest turn into view after the CSS transition settles
+    setTimeout(function () {
+      msgs.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 420);
+  });
+}());
+</script>
+{% endblock %}

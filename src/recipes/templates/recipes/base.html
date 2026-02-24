@@ -6,6 +6,7 @@
     <title>{% block title %}Cocktails{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    {% block head %}{% endblock %}
     <style>
         .recipe-grid {
             display: grid;
@@ -220,6 +221,16 @@
         .ing-missing {
             color: #c62828;
         }
+        /* Shared chat bubble styles (used in chat_response.html partial) */
+        .chat-turn { display: flex; flex-direction: column; gap: 0.5rem; }
+        .chat-bubble { max-width: 80%; padding: 0.5rem 0.75rem; border-radius: var(--pico-border-radius); font-size: 0.9rem; }
+        .chat-bubble.user { align-self: flex-end; background: var(--pico-primary-background); color: var(--pico-primary-inverse); }
+        .chat-bubble.assistant { align-self: flex-start; background: var(--pico-muted-background-color); }
+        .chat-bubble.error { color: var(--pico-del-color); }
+        .chat-recommendations { margin-top: 0.5rem; }
+        .chat-blurb { font-size: 0.8rem; color: var(--pico-muted-color); font-style: italic; margin: 0.35rem 0 0; }
+        .htmx-indicator { display: none; color: var(--pico-muted-color); font-size: 0.85rem; }
+        .htmx-request .htmx-indicator { display: inline; }
     </style>
 </head>
 <body>
@@ -231,6 +242,7 @@
             <ul>
                 <li><a href="{% url 'recipe_list' %}">All Recipes</a></li>
                 <li><a href="{% url 'available_recipes' %}">Available</a></li>
+                <li><a href="{% url 'chat_page' %}">Recommend</a></li>
                 {% if user.is_authenticated %}
                 <li>
                     <form method="post" action="{% url 'logout' %}" style="display:contents;">

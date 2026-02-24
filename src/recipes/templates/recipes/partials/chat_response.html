@@ -1,0 +1,42 @@
+{% load static %}
+<div class="chat-turn">
+  <div class="chat-bubble user">{{ user_message }}</div>
+  {% if response.error %}
+    <div class="chat-bubble assistant error">{{ response.error }}</div>
+  {% else %}
+    <div class="chat-bubble assistant">{{ response.message }}</div>
+    {% if recommendations %}
+    <div class="chat-recommendations recipe-grid">
+      {% for item in recommendations %}
+      <article class="recipe-card">
+        {% if item.recipe.glassware %}
+        {% with icon_path="recipes/icons/glassware/"|add:item.recipe.glassware|add:".svg" %}
+        <div class="card-glassware">
+          <img src="{% static icon_path %}" alt="{{ item.recipe.get_glassware_display }}" title="{{ item.recipe.get_glassware_display }}">
+        </div>
+        {% endwith %}
+        {% endif %}
+        <div class="recipe-card-body">
+          <h3><a href="{% url 'recipe_detail' item.recipe.slug %}">{{ item.recipe.name }}</a></h3>
+          <ul class="ingredients">
+            {% for ri in item.recipe.recipe_ingredients.all|slice:":5" %}
+            <li>{% if ri.amount %}{{ ri.display_amount }} {% endif %}{% if ri.unit %}{{ ri.unit }} {% endif %}<strong>{{ ri.ingredient.name }}</strong></li>
+            {% endfor %}
+          </ul>
+          <p class="chat-blurb">{{ item.blurb }}</p>
+        </div>
+        <div class="recipe-card-footer">
+          <div class="tag-icons">
+            {% for tag in item.recipe.taste_tags.all %}
+            {% with icon_path="recipes/icons/tags/"|add:tag.slug|add:".svg" %}
+            <img src="{% static icon_path %}" alt="{{ tag.name }}" title="{{ tag.name }}" class="tag-icon">
+            {% endwith %}
+            {% endfor %}
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endif %}
+</div>

@@ -4,9 +4,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import TrigramSimilarity
 from django.db.models import Max
 from django.shortcuts import get_object_or_404, render
+from django.views.decorators.http import require_POST
 
-from ingredients.models import Ingredient, IngredientCategory, IngredientCategoryAncestor
+from ingredients.models import IngredientCategory, IngredientCategoryAncestor
 from inventory.models import UserInventory
+from inventory.services import get_ingredient_match_sets
 
 from .models import Recipe, TasteTag
 
@@ -86,41 +88,62 @@ def recipe_detail(request, slug):
     return render(request, "recipes/recipe_detail.html", {"recipe": recipe})
 
 
-def _get_ingredient_match_sets(user, max_depth):
-    """Get sets of ingredient IDs for exact and category matches."""
-    user_ing_ids = set(
-        UserInventory.objects.filter(user=user, in_stock=True).values_list(
-            "ingredient_id", flat=True
+
+@login_required
+def chat_page(request):
+    """Dedicated natural language recommendation chat page."""
+    return render(request, "recipes/chat.html")
+
+
+@login_required
+@require_POST
+def chat_message(request):
+    """Handle a chat message and return a rendered conversation turn."""
+    from .services.chat import handle_chat_message
+
+    user_message = request.POST.get("message", "").strip()[:500]
+    if not user_message:
+        return render(request, "recipes/partials/chat_response.html", {
+            "user_message": "",
+            "response": None,
+            "recommendations": [],
+        })
+
+    try:
+        depth = int(request.POST.get("depth", 1))
+    except (ValueError, TypeError):
+        depth = 1
+    depth = max(1, min(2, depth))
+
+    response = handle_chat_message(request.user, request.session, user_message, depth)
+
+    slugs = [r["slug"] for r in response.recommendations]
+    recipes_by_slug = {
+        r.slug: r
+        for r in Recipe.objects.filter(slug__in=slugs).prefetch_related(
+            "taste_tags", "recipe_ingredients__ingredient"
         )
-    )
+    }
 
-    if not user_ing_ids or max_depth == 0:
-        return user_ing_ids, set()
+    recommendations_with_recipes = [
+        {"recipe": recipes_by_slug[r["slug"]], "blurb": r["blurb"]}
+        for r in response.recommendations
+        if r["slug"] in recipes_by_slug
+    ]
 
-    closure_depth = max_depth - 1
+    return render(request, "recipes/partials/chat_response.html", {
+        "user_message": user_message,
+        "response": response,
+        "recommendations": recommendations_with_recipes,
+    })
 
-    user_ancestor_categories = set(
-        IngredientCategoryAncestor.objects.filter(
-            category__ingredients__in=user_ing_ids, depth__lte=closure_depth
-        ).values_list("ancestor_id", flat=True)
-    )
 
-    all_satisfiable_categories = set(
-        IngredientCategoryAncestor.objects.filter(
-            ancestor__in=user_ancestor_categories
-        ).values_list("category_id", flat=True)
-    )
-
-    category_match_ids = set(
-        Ingredient.objects.filter(categories__in=all_satisfiable_categories).values_list(
-            "id", flat=True
-        )
-    )
-
-    # Category matches are those not in exact matches
-    category_match_ids -= user_ing_ids
-
-    return user_ing_ids, category_match_ids
+@login_required
+@require_POST
+def chat_clear(request):
+    """Clear the chat history from the session."""
+    request.session["recipe_chat_history"] = []
+    return render(request, "recipes/partials/chat_panel_empty.html")
 
 
 @login_required
@@ -140,7 +163,7 @@ def available_recipes(request):
         recipes = recipes.filter(taste_tags__slug__in=tags).distinct()
 
     # Get match sets for color-coding
-    exact_match_ids, category_match_ids = _get_ingredient_match_sets(
+    exact_match_ids, category_match_ids = get_ingredient_match_sets(
         request.user, max_depth
     )
 

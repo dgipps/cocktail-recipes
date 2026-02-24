@@ -154,3 +154,28 @@ GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
 OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
 OLLAMA_OCR_MODEL = os.getenv('OLLAMA_OCR_MODEL', 'minicpm-v')
 OLLAMA_PARSE_MODEL = os.getenv('OLLAMA_PARSE_MODEL', 'llama3.2')
+OLLAMA_CHAT_MODEL = os.getenv('OLLAMA_CHAT_MODEL', 'llama3.1:8b')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'chat': {
+            'format': '%(asctime)s [chat] %(message)s',
+            'datefmt': '%H:%M:%S',
+        },
+    },
+    'handlers': {
+        'chat_console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'chat',
+        },
+    },
+    'loggers': {
+        'recipes.services.chat': {
+            'handlers': ['chat_console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}

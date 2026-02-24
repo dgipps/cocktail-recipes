@@ -100,6 +100,46 @@ def get_makeable_recipes(user, max_depth=1):
     )
 
 
+def get_ingredient_match_sets(user, max_depth: int) -> tuple[set, set]:
+    """
+    Return (exact_ids, category_ids) for colour-coding ingredients against inventory.
+
+    exact_ids:    ingredient IDs the user has in stock
+    category_ids: ingredient IDs satisfiable via category substitution (not in exact_ids)
+    """
+    user_ing_ids = set(
+        UserInventory.objects.filter(user=user, in_stock=True).values_list(
+            "ingredient_id", flat=True
+        )
+    )
+
+    if not user_ing_ids or max_depth == 0:
+        return user_ing_ids, set()
+
+    closure_depth = max_depth - 1
+
+    user_ancestor_categories = set(
+        IngredientCategoryAncestor.objects.filter(
+            category__ingredients__in=user_ing_ids, depth__lte=closure_depth
+        ).values_list("ancestor_id", flat=True)
+    )
+
+    all_satisfiable_categories = set(
+        IngredientCategoryAncestor.objects.filter(
+            ancestor__in=user_ancestor_categories
+        ).values_list("category_id", flat=True)
+    )
+
+    category_match_ids = set(
+        Ingredient.objects.filter(
+            categories__in=all_satisfiable_categories
+        ).values_list("id", flat=True)
+    )
+
+    category_match_ids -= user_ing_ids  # exact matches are not category matches
+    return user_ing_ids, category_match_ids
+
+
 def get_user_inventory_stats(user):
     """Get basic stats about user's inventory."""
     in_stock = UserInventory.objects.filter(user=user, in_stock=True).count()
