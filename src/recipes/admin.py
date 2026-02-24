@@ -213,14 +213,14 @@ class RecipeImportAdmin(admin.ModelAdmin):
         "raw_ocr_text_display",
         "matching_log_display",
         "parsed_data_display",
-        "recipe",
+        "get_created_recipes",
         "created_at",
         "processed_at",
         "approved_at",
         "image_preview",
     ]
     ordering = ["-created_at"]
-    actions = ["approve_selected", "reject_selected", "reparse_selected"]
+    actions = ["approve_selected", "reapprove_selected", "reject_selected", "reparse_selected"]
     filter_horizontal = ["suggested_taste_tags"]
 
     fieldsets = [
@@ -256,7 +256,7 @@ class RecipeImportAdmin(admin.ModelAdmin):
         (
             "Result",
             {
-                "fields": ["recipe", "created_at", "processed_at", "approved_at"],
+                "fields": ["get_created_recipes", "created_at", "processed_at", "approved_at"],
             },
         ),
     ]
@@ -464,6 +464,18 @@ class RecipeImportAdmin(admin.ModelAdmin):
 
         return mark_safe(summary + table)
 
+    @admin.display(description="Recipes Created/Updated")
+    def get_created_recipes(self, obj):
+        """Show all recipes created or updated from this import."""
+        linked = obj.recipes.all()
+        if not linked:
+            return "-"
+        links = []
+        for recipe in linked:
+            url = f"/admin/recipes/recipe/{recipe.pk}/change/"
+            links.append(format_html('<a href="{}">{}</a>', url, recipe.name))
+        return mark_safe(", ".join(links))
+
     @admin.display(description="Parsed Data")
     def parsed_data_display(self, obj):
         """Show formatted JSON of parsed data."""
@@ -474,21 +486,47 @@ class RecipeImportAdmin(admin.ModelAdmin):
 
     @admin.action(description="Approve selected imports")
     def approve_selected(self, request, queryset):
-        """Approve selected imports and create recipes."""
+        """Approve selected imports and create/update all their recipes."""
         approved = 0
+        total_recipes = 0
         errors = []
         for recipe_import in queryset.filter(status=RecipeImport.Status.PARSED):
             try:
-                # Approve all recipes in the import
-                recipes_data = recipe_import.parsed_data.get("recipes", [])
-                for i in range(len(recipes_data)):
-                    approve_import(recipe_import, recipe_index=i)
+                created = approve_import(recipe_import)
                 approved += 1
+                total_recipes += len(created)
             except Exception as e:
                 errors.append(f"Import {recipe_import.pk}: {e}")
 
         if approved:
-            messages.success(request, f"Approved {approved} imports.")
+            messages.success(
+                request,
+                f"Approved {approved} import(s), created/updated {total_recipes} recipe(s).",
+            )
+        if errors:
+            messages.error(request, f"Errors: {'; '.join(errors)}")
+
+    @admin.action(description="Re-approve selected imports (fix missing recipes)")
+    def reapprove_selected(self, request, queryset):
+        """Re-run approval on already-approved imports to pick up any missed recipes."""
+        approved = 0
+        total_recipes = 0
+        errors = []
+        for recipe_import in queryset.filter(status=RecipeImport.Status.APPROVED):
+            try:
+                recipe_import.status = RecipeImport.Status.PARSED
+                recipe_import.save(update_fields=["status"])
+                created = approve_import(recipe_import)
+                approved += 1
+                total_recipes += len(created)
+            except Exception as e:
+                errors.append(f"Import {recipe_import.pk}: {e}")
+
+        if approved:
+            messages.success(
+                request,
+                f"Re-approved {approved} import(s), created/updated {total_recipes} recipe(s).",
+            )
         if errors:
             messages.error(request, f"Errors: {'; '.join(errors)}")
 

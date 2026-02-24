@@ -317,14 +317,12 @@ class RecipeImport(models.Model):
         "TasteTag", blank=True, related_name="recipe_imports"
     )
 
-    # Link to created recipe (after approval)
-    recipe = models.ForeignKey(
+    # Links to created recipes (after approval) - one import can produce multiple recipes
+    recipes = models.ManyToManyField(
         Recipe,
-        null=True,
         blank=True,
-        on_delete=models.SET_NULL,
         related_name="imports",
-        help_text="Recipe created from this import",
+        help_text="Recipes created or updated from this import",
     )
 
     # Timestamps

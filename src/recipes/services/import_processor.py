@@ -288,19 +288,17 @@ def find_matching_recipe(name: str) -> Recipe | None:
 @transaction.atomic
 def approve_import(
     recipe_import: RecipeImport,
-    recipe_index: int = 0,
     source: str = "",
-) -> Recipe:
+) -> list[Recipe]:
     """
-    Approve a recipe import and create/update the Recipe.
+    Approve a recipe import and create/update all Recipes found in it.
 
     Args:
         recipe_import: The RecipeImport to approve
-        recipe_index: Which recipe in parsed_data to import (default first)
-        source: Source name for the recipe
+        source: Source name for new recipes
 
     Returns:
-        Created or updated Recipe.
+        List of created or updated Recipe instances.
 
     Raises:
         ValueError: If import cannot be approved.
@@ -311,36 +309,34 @@ def approve_import(
     if not recipe_import.parsed_data:
         raise ValueError("No parsed data to import")
 
-    recipes = recipe_import.parsed_data.get("recipes", [])
-    if not recipes:
+    recipes_data = recipe_import.parsed_data.get("recipes", [])
+    if not recipes_data:
         raise ValueError("No recipes in parsed data")
 
-    if recipe_index >= len(recipes):
-        raise ValueError(f"Recipe index {recipe_index} out of range")
+    created_recipes = []
+    for recipe_data in recipes_data:
+        name = recipe_data.get("name", "")
 
-    recipe_data = recipes[recipe_index]
-    name = recipe_data.get("name", "")
+        existing = find_matching_recipe(name)
+        if existing:
+            recipe = update_recipe_from_data(existing, recipe_data)
+            logger.info(f"Updated existing recipe: {name}")
+        else:
+            recipe = create_recipe_from_data(recipe_data, source=source)
+            logger.info(f"Created new recipe: {name}")
 
-    # Check for existing recipe to update
-    existing = find_matching_recipe(name)
+        # Apply taste tags from import suggestions
+        recipe.taste_tags.set(recipe_import.suggested_taste_tags.all())
 
-    if existing:
-        recipe = update_recipe_from_data(existing, recipe_data)
-        logger.info(f"Updated existing recipe: {name}")
-    else:
-        recipe = create_recipe_from_data(recipe_data, source=source)
-        logger.info(f"Created new recipe: {name}")
+        created_recipes.append(recipe)
 
-    # Apply taste tags from import suggestions
-    recipe.taste_tags.set(recipe_import.suggested_taste_tags.all())
-
-    # Update import status
+    # Update import status once, linking all created/updated recipes
     recipe_import.status = RecipeImport.Status.APPROVED
-    recipe_import.recipe = recipe
     recipe_import.approved_at = timezone.now()
     recipe_import.save()
+    recipe_import.recipes.set(created_recipes)
 
-    return recipe
+    return created_recipes
 
 
 @transaction.atomic
