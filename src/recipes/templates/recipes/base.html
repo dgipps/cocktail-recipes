@@ -15,10 +15,22 @@
         .recipe-card {
             display: flex;
             flex-direction: column;
+            position: relative;
             height: 240px;
             padding: 0.75rem;
             border: 1px solid var(--pico-muted-border-color);
             border-radius: var(--pico-border-radius);
+        }
+        .card-glassware {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            opacity: 0.5;
+        }
+        .card-glassware img {
+            width: 32px;
+            height: 32px;
+            display: block;
         }
         .recipe-card-body {
             flex: 1;
@@ -35,7 +47,6 @@
         }
         .tag-icons { display: flex; gap: 3px; align-items: center; }
         .tag-icon { width: 16px; height: 16px; opacity: 0.65; }
-        .glassware-icon img { width: 24px; height: 24px; opacity: 0.75; }
         .recipe-detail-icons {
             display: flex;
             align-items: center;
@@ -53,6 +64,7 @@
         .tag-icons-detail { display: flex; gap: 5px; align-items: center; }
         .recipe-card h3 {
             margin: 0 0 0.5rem 0;
+            padding-right: 2.5rem;
             font-size: 1rem;
             line-height: 1.2;
         }

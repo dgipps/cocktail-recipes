@@ -4,6 +4,13 @@
 <div class="recipe-grid">
     {% for recipe in recipes %}
     <article class="recipe-card">
+        {% if recipe.glassware %}
+        {% with icon_path="recipes/icons/glassware/"|add:recipe.glassware|add:".svg" %}
+        <div class="card-glassware">
+            <img src="{% static icon_path %}" alt="{{ recipe.get_glassware_display }}" title="{{ recipe.get_glassware_display }}">
+        </div>
+        {% endwith %}
+        {% endif %}
         <div class="recipe-card-body">
             <h3><a href="{% url 'recipe_detail' recipe.slug %}">{{ recipe.name }}</a></h3>
             <ul class="ingredients">
@@ -25,13 +32,6 @@
                 {% endwith %}
                 {% endfor %}
             </div>
-            {% if recipe.glassware %}
-            {% with icon_path="recipes/icons/glassware/"|add:recipe.glassware|add:".svg" %}
-            <div class="glassware-icon">
-                <img src="{% static icon_path %}" alt="{{ recipe.get_glassware_display }}" title="{{ recipe.get_glassware_display }}">
-            </div>
-            {% endwith %}
-            {% endif %}
         </div>
     </article>
     {% empty %}

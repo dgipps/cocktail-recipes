@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-  <!-- Rim (wide) -->
-  <line x1="5" y1="8" x2="27" y2="8"/>
-  <!-- Bowl curves down to stem point -->
-  <path d="M5 8C6 16 13 20 16 20C19 20 26 16 27 8"/>
+  <!-- Wide rim -->
+  <line x1="2" y1="7" x2="30" y2="7"/>
+  <!-- Shallow curved bowl -->
+  <path d="M2 7C4 14 11 20 16 20C21 20 28 14 30 7"/>
   <!-- Stem -->
-  <line x1="16" y1="20" x2="16" y2="27"/>
+  <line x1="16" y1="20" x2="16" y2="28"/>
   <!-- Base -->
-  <line x1="10" y1="27" x2="22" y2="27"/>
+  <line x1="10" y1="28" x2="22" y2="28"/>
 </svg>
