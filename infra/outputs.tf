@@ -52,10 +52,12 @@ output "deploy_commands" {
       --region ${var.region}
 
     # 3. Run migrations (using Cloud SQL Proxy locally)
-    cloud-sql-proxy ${google_sql_database_instance.main.connection_name} &
-    DB_HOST=localhost DB_PORT=5432 DB_NAME=${var.db_name} \
+    # Use port 5433 to avoid conflicting with a local Postgres on 5432
+    cloud-sql-proxy ${google_sql_database_instance.main.connection_name} --port 5433 &
+    DB_HOST=localhost DB_PORT=5433 DB_NAME=${var.db_name} \
       DB_USER=${google_sql_user.app.name} DB_PASSWORD=<from-secret-manager> \
-      python src/manage.py migrate
+      DJANGO_SETTINGS_MODULE=cocktails.settings_prod \
+      uv run python src/manage.py migrate
 
   EOT
 }

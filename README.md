@@ -150,14 +150,16 @@ gcloud run services update cocktails \
 
 ### Running migrations in production
 
-Use the Cloud SQL Auth Proxy to connect from your local machine:
+Use the Cloud SQL Auth Proxy to connect from your local machine. Port 5433 is
+used to avoid conflicting with a local PostgreSQL instance on the default 5432:
 
 ```bash
-# Start the proxy (keep running in background)
-cloud-sql-proxy <CONNECTION_NAME> &
+# Start the proxy on port 5433 (keep running in a separate terminal)
+cloud-sql-proxy <CONNECTION_NAME> --port 5433 &
 
 # Run migrations
 DJANGO_SETTINGS_MODULE=cocktails.settings_prod \
+  DB_PORT=5433 \
   uv run python src/manage.py migrate
 ```
 
