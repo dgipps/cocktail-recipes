@@ -11,7 +11,7 @@ from django.utils.html import escape, format_html, mark_safe
 from inventory.services import get_makeable_recipes, get_user_inventory_stats
 
 from .models import Recipe, RecipeImport, RecipeIngredient, TasteTag
-from .services.image_parser import ParseError, parse_recipe_image, suggest_taste_tags
+from .services.image_parser import ParseError, parse_recipe_image, suggest_recipe_metadata
 from .services.import_processor import (
     approve_import,
     find_matching_recipe,
@@ -49,12 +49,12 @@ class RecipeAdmin(admin.ModelAdmin):
     fieldsets = [
         (None, {"fields": ["name", "slug"]}),
         ("Source", {"fields": ["source", "page"]}),
-        ("Instructions", {"fields": ["method", "garnish", "notes", "taste_tags"]}),
+        ("Instructions", {"fields": ["method", "garnish", "notes", "taste_tags", "glassware"]}),
     ]
 
-    @admin.action(description="Suggest taste tags with AI")
+    @admin.action(description="Suggest taste tags and glassware with AI")
     def suggest_taste_tags_for_selected(self, request, queryset):
-        """Suggest and apply taste tags to selected recipes using LLM."""
+        """Suggest and apply taste tags and glassware to selected recipes using LLM."""
         updated = 0
         errors = []
         for recipe in queryset:
@@ -66,17 +66,22 @@ class RecipeAdmin(admin.ModelAdmin):
                         for ri in recipe.recipe_ingredients.select_related("ingredient").all()
                     ],
                     "method": recipe.method,
+                    "garnish": recipe.garnish,
+                    "notes": recipe.notes,
                 }
-                tag_slugs = suggest_taste_tags(recipe_data)
-                tags = TasteTag.objects.filter(slug__in=tag_slugs)
+                metadata = suggest_recipe_metadata(recipe_data)
+                tags = TasteTag.objects.filter(slug__in=metadata["taste_tags"])
                 recipe.taste_tags.set(tags)
+                if metadata["glassware"]:
+                    recipe.glassware = metadata["glassware"]
+                    recipe.save(update_fields=["glassware"])
                 updated += 1
             except Exception as e:
                 errors.append(f"{recipe.name}: {e}")
-                logger.warning(f"Failed to suggest taste tags for '{recipe.name}': {e}")
+                logger.warning(f"Failed to suggest metadata for '{recipe.name}': {e}")
 
         if updated:
-            messages.success(request, f"Updated taste tags for {updated} recipe(s).")
+            messages.success(request, f"Updated taste tags and glassware for {updated} recipe(s).")
         if errors:
             messages.error(request, f"Errors: {'; '.join(errors)}")
 
@@ -226,9 +231,9 @@ class RecipeImportAdmin(admin.ModelAdmin):
     fieldsets = [
         (None, {"fields": ["source_image", "image_preview", "status"]}),
         (
-            "Taste Tags",
+            "Suggestions",
             {
-                "fields": ["suggested_taste_tags"],
+                "fields": ["suggested_taste_tags", "suggested_glassware"],
                 "classes": ["wide"],
             },
         ),
@@ -321,14 +326,17 @@ class RecipeImportAdmin(admin.ModelAdmin):
             recipe_import.processed_at = timezone.now()
             recipe_import.save()
 
-            # Suggest taste tags for each recipe in the import
+            # Suggest taste tags and glassware for each recipe in the import
             for recipe_data in parsed.get("recipes", []):
                 try:
-                    tag_slugs = suggest_taste_tags(recipe_data)
-                    tags = TasteTag.objects.filter(slug__in=tag_slugs)
+                    metadata = suggest_recipe_metadata(recipe_data)
+                    tags = TasteTag.objects.filter(slug__in=metadata["taste_tags"])
                     recipe_import.suggested_taste_tags.add(*tags)
+                    if metadata["glassware"] and not recipe_import.suggested_glassware:
+                        recipe_import.suggested_glassware = metadata["glassware"]
+                        recipe_import.save(update_fields=["suggested_glassware"])
                 except Exception as e:
-                    logger.warning(f"Failed to suggest taste tags: {e}")
+                    logger.warning(f"Failed to suggest metadata: {e}")
 
         except ParseError as e:
             recipe_import.status = RecipeImport.Status.ERROR

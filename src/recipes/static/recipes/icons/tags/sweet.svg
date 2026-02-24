@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Gem/diamond shape with crown facets -->
+  <path d="M10 5L22 5L28 13L16 28L4 13Z"/>
+  <!-- Crown girdle line -->
+  <line x1="4" y1="13" x2="28" y2="13"/>
+  <!-- Crown facet lines -->
+  <line x1="10" y1="5" x2="16" y2="13"/>
+  <line x1="22" y1="5" x2="16" y2="13"/>
+</svg>

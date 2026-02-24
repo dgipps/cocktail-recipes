@@ -13,12 +13,44 @@
             gap: 1rem;
         }
         .recipe-card {
+            display: flex;
+            flex-direction: column;
             height: 240px;
-            overflow: hidden;
             padding: 0.75rem;
             border: 1px solid var(--pico-muted-border-color);
             border-radius: var(--pico-border-radius);
         }
+        .recipe-card-body {
+            flex: 1;
+            overflow: hidden;
+        }
+        .recipe-card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 0.35rem;
+            border-top: 1px solid var(--pico-muted-border-color);
+            margin-top: 0.35rem;
+            flex-shrink: 0;
+        }
+        .tag-icons { display: flex; gap: 3px; align-items: center; }
+        .tag-icon { width: 16px; height: 16px; opacity: 0.65; }
+        .glassware-icon img { width: 24px; height: 24px; opacity: 0.75; }
+        .recipe-detail-icons {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+        .glassware-detail {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--pico-muted-color);
+            font-size: 0.9rem;
+        }
+        .glassware-icon-detail { width: 28px; height: 28px; opacity: 0.75; }
+        .tag-icons-detail { display: flex; gap: 5px; align-items: center; }
         .recipe-card h3 {
             margin: 0 0 0.5rem 0;
             font-size: 1rem;
@@ -62,6 +94,7 @@
             margin-bottom: 1.5rem;
             align-items: flex-start;
         }
+        .filter-row select,
         .filter-row input:not([type="checkbox"]):not([type="radio"]) {
             flex: 1 1 200px;
             min-width: 160px;

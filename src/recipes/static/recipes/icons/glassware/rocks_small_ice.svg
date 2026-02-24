@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Glass: short and wide (rocks style) -->
+  <path d="M7 12L25 12L24 28L8 28Z"/>
+  <!-- Three small ice cubes -->
+  <rect x="9" y="15" width="4" height="4" rx="0.5"/>
+  <rect x="15" y="16" width="4" height="4" rx="0.5"/>
+  <rect x="20" y="15" width="4" height="4" rx="0.5"/>
+</svg>

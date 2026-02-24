@@ -1,19 +1,38 @@
+{% load static %}
 <p class="recipe-count">{{ recipes|length }} recipe{{ recipes|length|pluralize }}</p>
 
 <div class="recipe-grid">
     {% for recipe in recipes %}
     <article class="recipe-card">
-        <h3><a href="{% url 'recipe_detail' recipe.slug %}">{{ recipe.name }}</a></h3>
-        <ul class="ingredients">
-            {% for ri in recipe.recipe_ingredients.all|slice:":6" %}
-            <li>{% if ri.amount %}{{ ri.display_amount }} {% endif %}{% if ri.unit %}{{ ri.unit }} {% endif %}<strong>{{ ri.ingredient.name }}</strong></li>
-            {% endfor %}
-        </ul>
-        {% with extra=recipe.recipe_ingredients.count|add:"-6" %}
-        {% if extra > 0 %}
-        <div class="more-ingredients">+ {{ extra }} more ingredient{{ extra|pluralize }}</div>
-        {% endif %}
-        {% endwith %}
+        <div class="recipe-card-body">
+            <h3><a href="{% url 'recipe_detail' recipe.slug %}">{{ recipe.name }}</a></h3>
+            <ul class="ingredients">
+                {% for ri in recipe.recipe_ingredients.all|slice:":6" %}
+                <li>{% if ri.amount %}{{ ri.display_amount }} {% endif %}{% if ri.unit %}{{ ri.unit }} {% endif %}<strong>{{ ri.ingredient.name }}</strong></li>
+                {% endfor %}
+            </ul>
+            {% with extra=recipe.recipe_ingredients.count|add:"-6" %}
+            {% if extra > 0 %}
+            <div class="more-ingredients">+ {{ extra }} more ingredient{{ extra|pluralize }}</div>
+            {% endif %}
+            {% endwith %}
+        </div>
+        <div class="recipe-card-footer">
+            <div class="tag-icons">
+                {% for tag in recipe.taste_tags.all %}
+                {% with icon_path="recipes/icons/tags/"|add:tag.slug|add:".svg" %}
+                <img src="{% static icon_path %}" alt="{{ tag.name }}" title="{{ tag.name }}" class="tag-icon">
+                {% endwith %}
+                {% endfor %}
+            </div>
+            {% if recipe.glassware %}
+            {% with icon_path="recipes/icons/glassware/"|add:recipe.glassware|add:".svg" %}
+            <div class="glassware-icon">
+                <img src="{% static icon_path %}" alt="{{ recipe.get_glassware_display }}" title="{{ recipe.get_glassware_display }}">
+            </div>
+            {% endwith %}
+            {% endif %}
+        </div>
     </article>
     {% empty %}
     <p>No recipes found.</p>

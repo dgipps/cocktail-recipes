@@ -171,6 +171,49 @@ Respond with ONLY a JSON array of slugs, e.g. ["citrusy", "refreshing"]
 
 VALID_TASTE_TAG_SLUGS = {"citrusy", "smoky", "strong", "low_abv", "bitter", "refreshing", "sweet"}
 
+VALID_GLASSWARE_SLUGS = {
+    "highball_ice",
+    "highball_straw",
+    "julep_tin",
+    "coupe",
+    "coupe_citrus",
+    "rocks_big_ice",
+    "rocks_small_ice",
+    "nick_nora",
+    "tiki",
+}
+
+RECIPE_METADATA_PROMPT = """\
+Given this cocktail:
+Name: {name}
+Ingredients: {ingredients}
+Method: {method}
+Garnish: {garnish}
+Notes: {notes}
+
+1. Select all applicable taste tags (JSON array of slugs):
+- citrusy: Bright citrus notes (lemon, lime, orange, grapefruit juice or zest)
+- smoky: Smoky or peaty flavors (mezcal, peated scotch, lapsang souchong)
+- strong: Spirit-forward, high ABV (Old Fashioned, Negroni style — ≥2 oz base spirit, minimal dilution)
+- low_abv: Low alcohol (aperitivo spritzes, wine/beer cocktails, <1 oz total spirit)
+- bitter: Prominent bitter flavors (amaro, Campari, Aperol, Cynar, bitters-heavy)
+- refreshing: Light, effervescent or cooling (soda/tonic topped, mint, cucumber)
+- sweet: Noticeably sweet or dessert-like (liqueur-heavy, cream, chocolate)
+
+2. Identify the serving vessel (one slug, or null if unknown):
+- highball_ice: Tall glass on ice (highball, collins, Tom Collins)
+- highball_straw: Tall glass with straw (tropical drinks)
+- julep_tin: Metal julep cup (mint julep, smashes)
+- coupe: Wide shallow stemmed glass, no ice (Daiquiri, Gimlet, Sidecar)
+- coupe_citrus: Coupe with citrus garnish on rim
+- rocks_big_ice: Short glass with large ice block (Boulevardier, spirit-forward on rocks)
+- rocks_small_ice: Short glass with regular ice (standard rocks serve)
+- nick_nora: Small rounded stemmed glass (elegant stirred cocktails)
+- tiki: Ceramic tiki mug (Mai Tai, Zombie)
+
+Respond ONLY with JSON: {{"taste_tags": [...], "glassware": "slug_or_null"}}
+"""
+
 
 class ParseError(Exception):
     """Raised when image parsing fails."""
@@ -620,38 +663,59 @@ def parse_recipe_image(image_data: bytes | str | Path) -> tuple[str, dict]:
     return raw_text, parsed
 
 
-def suggest_taste_tags(recipe_data: dict) -> list[str]:
+def suggest_recipe_metadata(recipe_data: dict) -> dict:
     """
-    Use LLM to suggest taste tag slugs for a recipe.
+    Use LLM to suggest taste tags and glassware for a recipe in a single call.
 
     Args:
-        recipe_data: Dict with keys: name, ingredients, method
+        recipe_data: Dict with keys: name, ingredients, method, garnish, notes
 
     Returns:
-        List of valid slug strings from VALID_TASTE_TAG_SLUGS.
+        Dict with keys:
+          "taste_tags": list of valid slug strings
+          "glassware": valid glassware slug or empty string
     """
     name = recipe_data.get("name", "")
     ingredients = ", ".join(
         ing.get("name", "") for ing in recipe_data.get("ingredients", []) if ing.get("name")
     )
     method = recipe_data.get("method", "")
+    garnish = recipe_data.get("garnish", "")
+    notes = recipe_data.get("notes", "")
 
-    prompt = TASTE_TAGS_PROMPT.format(name=name, ingredients=ingredients, method=method)
+    prompt = RECIPE_METADATA_PROMPT.format(
+        name=name,
+        ingredients=ingredients,
+        method=method,
+        garnish=garnish,
+        notes=notes,
+    )
     provider = _get_provider()
 
     if provider == "gemini":
-        raw = _suggest_tags_with_gemini(prompt)
+        raw = _suggest_metadata_with_gemini(prompt)
     else:
-        raw = _suggest_tags_with_ollama(prompt)
+        raw = _suggest_metadata_with_ollama(prompt)
 
-    # Parse and validate slugs
-    slugs = [s for s in raw if s in VALID_TASTE_TAG_SLUGS]
-    logger.info(f"Suggested taste tags for '{name}': {slugs}")
-    return slugs
+    taste_tags = [s for s in raw.get("taste_tags", []) if s in VALID_TASTE_TAG_SLUGS]
+    glassware_raw = raw.get("glassware") or ""
+    glassware = glassware_raw if glassware_raw in VALID_GLASSWARE_SLUGS else ""
+
+    logger.info(f"Suggested metadata for '{name}': tags={taste_tags}, glassware={glassware!r}")
+    return {"taste_tags": taste_tags, "glassware": glassware}
 
 
-def _suggest_tags_with_ollama(prompt: str) -> list[str]:
-    """Call Ollama to get taste tag suggestions."""
+def suggest_taste_tags(recipe_data: dict) -> list[str]:
+    """
+    Use LLM to suggest taste tag slugs for a recipe.
+
+    Thin wrapper around suggest_recipe_metadata() for backwards compatibility.
+    """
+    return suggest_recipe_metadata(recipe_data).get("taste_tags", [])
+
+
+def _suggest_metadata_with_ollama(prompt: str) -> dict:
+    """Call Ollama to get combined recipe metadata suggestions."""
     import ollama
 
     host = getattr(settings, "OLLAMA_HOST", "http://localhost:11434")
@@ -662,31 +726,31 @@ def _suggest_tags_with_ollama(prompt: str) -> list[str]:
         response = client.chat(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            options={"temperature": 0.1, "num_predict": 100},
+            options={"temperature": 0.1, "num_predict": 200},
         )
         content = response["message"]["content"].strip()
         return json.loads(content)
     except Exception as e:
-        logger.warning(f"Ollama taste tag suggestion failed: {e}")
-        return []
+        logger.warning(f"Ollama metadata suggestion failed: {e}")
+        return {}
 
 
-def _suggest_tags_with_gemini(prompt: str) -> list[str]:
-    """Call Gemini to get taste tag suggestions."""
+def _suggest_metadata_with_gemini(prompt: str) -> dict:
+    """Call Gemini to get combined recipe metadata suggestions."""
     try:
         model = _get_gemini_model()
         response = model.generate_content(
             prompt,
             generation_config={
                 "temperature": 0.1,
-                "max_output_tokens": 100,
+                "max_output_tokens": 200,
                 "response_mime_type": "application/json",
             },
         )
         return json.loads(response.text.strip())
     except Exception as e:
-        logger.warning(f"Gemini taste tag suggestion failed: {e}")
-        return []
+        logger.warning(f"Gemini metadata suggestion failed: {e}")
+        return {}
 
 
 def _validate_recipe(recipe: dict, index: int) -> None:

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Rim (wide) -->
+  <line x1="5" y1="8" x2="25" y2="8"/>
+  <!-- Bowl curves down to stem point -->
+  <path d="M5 8C6 16 13 20 16 20C19 20 24 16 25 8"/>
+  <!-- Stem -->
+  <line x1="16" y1="20" x2="16" y2="27"/>
+  <!-- Base -->
+  <line x1="10" y1="27" x2="22" y2="27"/>
+  <!-- Citrus wedge on rim (right side) -->
+  <path d="M25 8L28 3L31 8"/>
+  <!-- Segment line through wedge -->
+  <line x1="28" y1="3" x2="28" y2="8"/>
+</svg>

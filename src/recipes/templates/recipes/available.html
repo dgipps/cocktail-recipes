@@ -1,44 +1,117 @@
 {% extends "recipes/base.html" %}
+{% load static %}
 
 {% block title %}Available Recipes - Cocktails{% endblock %}
 
 {% block content %}
 <h1>Available Recipes</h1>
 
-<div class="search-box">
-    <select name="depth"
-            hx-get="{% url 'available_recipes' %}"
-            hx-trigger="change"
-            hx-target="#results"
-            hx-push-url="true"
-            hx-include="[name='tags']">
-        <option value="0" {% if max_depth == 0 %}selected{% endif %}>Exact match only</option>
-        <option value="1" {% if max_depth == 1 %}selected{% endif %}>Same category</option>
-        <option value="2" {% if max_depth == 2 %}selected{% endif %}>Parent category</option>
-        <option value="3" {% if max_depth == 3 %}selected{% endif %}>Any ancestor</option>
-    </select>
-</div>
+<div class="filter-row">
+  <select name="depth"
+          hx-get="{% url 'available_recipes' %}"
+          hx-trigger="change"
+          hx-target="#results"
+          hx-push-url="true"
+          hx-include="[name='tags']">
+      <option value="0" {% if max_depth == 0 %}selected{% endif %}>Exact match only</option>
+      <option value="1" {% if max_depth == 1 %}selected{% endif %}>Same category</option>
+      <option value="2" {% if max_depth == 2 %}selected{% endif %}>Parent category</option>
+      <option value="3" {% if max_depth == 3 %}selected{% endif %}>Any ancestor</option>
+  </select>
 
-{% if all_tags %}
-<div class="tag-filters">
-  {% for tag in all_tags %}
-  <label>
-    <input type="checkbox"
-           name="tags"
-           value="{{ tag.slug }}"
-           {% if tag.slug in selected_tags %}checked{% endif %}
-           hx-get="{% url 'available_recipes' %}"
-           hx-trigger="change"
-           hx-target="#results"
-           hx-push-url="true"
-           hx-include="[name='depth'], [name='tags']">
-    {{ tag.name }}
-  </label>
-  {% endfor %}
+  {% if all_tags %}
+  <div class="tag-dropdown" id="tag-dropdown">
+    <button type="button" class="tag-dropdown-toggle" aria-expanded="false" aria-haspopup="listbox">
+      <span class="tag-dropdown-label">Taste tags</span>
+      <span class="tag-dropdown-arrow" aria-hidden="true">&#9660;</span>
+    </button>
+    <div class="tag-dropdown-panel" hidden>
+      <div class="tag-dropdown-options">
+        {% for tag in all_tags %}
+        <label class="tag-option">
+          <input type="checkbox"
+                 name="tags"
+                 value="{{ tag.slug }}"
+                 {% if tag.slug in selected_tags %}checked{% endif %}
+                 hx-get="{% url 'available_recipes' %}"
+                 hx-trigger="change"
+                 hx-target="#results"
+                 hx-push-url="true"
+                 hx-include="[name='depth'], [name='tags']">
+          {% with icon_path="recipes/icons/tags/"|add:tag.slug|add:".svg" %}
+          <img src="{% static icon_path %}" alt="" aria-hidden="true" class="tag-icon">
+          {% endwith %}
+          <span>{{ tag.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <button type="button" class="tag-dropdown-clear outline secondary">Clear</button>
+    </div>
+  </div>
+  {% endif %}
 </div>
-{% endif %}
 
 <div id="results">
     {% include "recipes/partials/available_results.html" %}
 </div>
+
+{% if all_tags %}
+<script>
+(function () {
+  var dropdown = document.getElementById('tag-dropdown');
+  if (!dropdown) return;
+  var toggle = dropdown.querySelector('.tag-dropdown-toggle');
+  var panel = dropdown.querySelector('.tag-dropdown-panel');
+  var label = dropdown.querySelector('.tag-dropdown-label');
+  var clearBtn = dropdown.querySelector('.tag-dropdown-clear');
+  var checkboxes = Array.from(dropdown.querySelectorAll('input[type="checkbox"]'));
+
+  function updateLabel() {
+    var checked = checkboxes.filter(function (cb) { return cb.checked; });
+    if (checked.length === 0) {
+      label.textContent = 'Taste tags';
+      toggle.classList.remove('has-selection');
+    } else if (checked.length === 1) {
+      label.textContent = checked[0].parentElement.querySelector('span').textContent.trim();
+      toggle.classList.add('has-selection');
+    } else {
+      label.textContent = checked.length + ' tags';
+      toggle.classList.add('has-selection');
+    }
+  }
+
+  function openPanel() {
+    panel.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+  }
+
+  function closePanel() {
+    panel.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+  }
+
+  toggle.addEventListener('click', function () {
+    panel.hidden ? openPanel() : closePanel();
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!dropdown.contains(e.target)) closePanel();
+  });
+
+  checkboxes.forEach(function (cb) {
+    cb.addEventListener('change', updateLabel);
+  });
+
+  clearBtn.addEventListener('click', function () {
+    checkboxes.forEach(function (cb) { cb.checked = false; });
+    updateLabel();
+    if (checkboxes.length) {
+      checkboxes[0].dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+
+  updateLabel();
+})();
+</script>
+{% endif %}
 {% endblock %}

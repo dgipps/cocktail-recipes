@@ -1,4 +1,5 @@
 {% extends "recipes/base.html" %}
+{% load static %}
 
 {% block title %}All Recipes - Cocktails{% endblock %}
 
@@ -52,6 +53,9 @@
                  hx-target="#results"
                  hx-push-url="true"
                  hx-include="[name='q'], [name='cat'], [name='tags']">
+          {% with icon_path="recipes/icons/tags/"|add:tag.slug|add:".svg" %}
+          <img src="{% static icon_path %}" alt="" aria-hidden="true" class="tag-icon">
+          {% endwith %}
           <span>{{ tag.name }}</span>
         </label>
         {% endfor %}

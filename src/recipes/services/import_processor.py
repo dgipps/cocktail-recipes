@@ -334,8 +334,11 @@ def approve_import(
             recipe = create_recipe_from_data(recipe_data, source=source)
             logger.info(f"Created new recipe: {name}")
 
-        # Apply taste tags from import suggestions
+        # Apply taste tags and glassware from import suggestions
         recipe.taste_tags.set(recipe_import.suggested_taste_tags.all())
+        if recipe_import.suggested_glassware:
+            recipe.glassware = recipe_import.suggested_glassware
+            recipe.save(update_fields=["glassware"])
 
         created_recipes.append(recipe)
 

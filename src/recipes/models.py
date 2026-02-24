@@ -14,6 +14,18 @@ from .measurements import (
 )
 
 
+class GlasswareType(models.TextChoices):
+    HIGHBALL_ICE = "highball_ice", "Highball (ice)"
+    HIGHBALL_STRAW = "highball_straw", "Highball (straw)"
+    JULEP_TIN = "julep_tin", "Julep Tin"
+    COUPE = "coupe", "Coupe"
+    COUPE_CITRUS = "coupe_citrus", "Coupe (citrus)"
+    ROCKS_BIG_ICE = "rocks_big_ice", "Rocks (big ice)"
+    ROCKS_SMALL_ICE = "rocks_small_ice", "Rocks (small ice)"
+    NICK_NORA = "nick_nora", "Nick & Nora"
+    TIKI = "tiki", "Tiki"
+
+
 class TasteTag(models.Model):
     slug = models.SlugField(unique=True)
     name = models.CharField(max_length=50, unique=True)
@@ -57,6 +69,12 @@ class Recipe(models.Model):
         help_text="Additional notes about the recipe",
     )
     taste_tags = models.ManyToManyField("TasteTag", blank=True, related_name="recipes")
+    glassware = models.CharField(
+        max_length=20,
+        choices=GlasswareType.choices,
+        blank=True,
+        help_text="Serving vessel (used for icon on recipe cards)",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -315,6 +333,14 @@ class RecipeImport(models.Model):
     # Taste tag suggestions from LLM (editable before approval)
     suggested_taste_tags = models.ManyToManyField(
         "TasteTag", blank=True, related_name="recipe_imports"
+    )
+
+    # Glassware suggestion from LLM (editable before approval)
+    suggested_glassware = models.CharField(
+        max_length=20,
+        choices=GlasswareType.choices,
+        blank=True,
+        help_text="LLM-suggested glassware (editable before approval)",
     )
 
     # Links to created recipes (after approval) - one import can produce multiple recipes

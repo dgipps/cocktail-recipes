@@ -1,4 +1,5 @@
 {% extends "recipes/base.html" %}
+{% load static %}
 
 {% block title %}{{ recipe.name }} - Cocktails{% endblock %}
 
@@ -12,6 +13,27 @@
             {% if recipe.source and recipe.page %}, {% endif %}
             {% if recipe.page %}p. {{ recipe.page }}{% endif %}
         </small></p>
+        {% endif %}
+        {% if recipe.glassware or recipe.taste_tags.all %}
+        <div class="recipe-detail-icons">
+            {% if recipe.glassware %}
+            {% with icon_path="recipes/icons/glassware/"|add:recipe.glassware|add:".svg" %}
+            <div class="glassware-detail">
+                <img src="{% static icon_path %}" alt="{{ recipe.get_glassware_display }}" class="glassware-icon-detail">
+                <span>{{ recipe.get_glassware_display }}</span>
+            </div>
+            {% endwith %}
+            {% endif %}
+            {% if recipe.taste_tags.all %}
+            <div class="tag-icons-detail">
+                {% for tag in recipe.taste_tags.all %}
+                {% with icon_path="recipes/icons/tags/"|add:tag.slug|add:".svg" %}
+                <img src="{% static icon_path %}" alt="{{ tag.name }}" title="{{ tag.name }}" class="tag-icon">
+                {% endwith %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
         {% endif %}
     </header>
 
