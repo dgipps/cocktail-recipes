@@ -92,7 +92,8 @@ def recipe_detail(request, slug):
 @login_required
 def chat_page(request):
     """Dedicated natural language recommendation chat page."""
-    return render(request, "recipes/chat.html")
+    has_inventory = UserInventory.objects.filter(user=request.user, in_stock=True).exists()
+    return render(request, "recipes/chat.html", {"has_inventory": has_inventory})
 
 
 @login_required
@@ -182,6 +183,8 @@ def available_recipes(request):
             },
         )
 
+    has_inventory = UserInventory.objects.filter(user=request.user, in_stock=True).exists()
+
     return render(
         request,
         "recipes/available.html",
@@ -192,5 +195,6 @@ def available_recipes(request):
             "category_match_ids": category_match_ids,
             "all_tags": all_tags,
             "selected_tags": selected_tags,
+            "has_inventory": has_inventory,
         },
     )

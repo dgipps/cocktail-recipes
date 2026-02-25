@@ -6,6 +6,12 @@
 {% block content %}
 <h1>Available Recipes</h1>
 
+{% if not has_inventory %}
+<div role="alert" style="margin-bottom:1.25rem;">
+  Your inventory is empty. <a href="{% url 'inventory' %}">Add some ingredients</a> to see what you can make.
+</div>
+{% endif %}
+
 <div class="filter-row">
   <select name="depth"
           hx-get="{% url 'available_recipes' %}"

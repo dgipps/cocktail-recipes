@@ -118,6 +118,11 @@
   <div class="chat-welcome">
     <h2>What are you in the mood for?</h2>
     <p>Describe what you're craving — I'll find cocktails you can make right now.</p>
+    {% if not has_inventory %}
+    <p style="margin-top:0.75rem;font-size:0.9rem;">
+      Your inventory is empty. <a href="{% url 'inventory' %}">Add some ingredients</a> so I know what you have.
+    </p>
+    {% endif %}
   </div>
 
   <div id="chat-messages"></div>
