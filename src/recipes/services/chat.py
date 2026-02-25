@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from django.conf import settings
 
 from inventory.services import get_ingredient_match_sets
-from recipes.services.image_parser import VALID_GLASSWARE_SLUGS, VALID_TASTE_TAG_SLUGS
+from recipes.services.image_parser import VALID_TASTE_TAG_SLUGS
 
 logger = logging.getLogger(__name__)
 
@@ -42,16 +42,22 @@ Substitution mode: {depth_description}
 
 Instructions:
 1. ALWAYS call query_recipes to get candidates before making any recommendation.
-2. Select up to 8 best matches. For each, write a 1-2 sentence blurb explaining
+2. Use tags for flavor/style (smoky, strong, refreshing…).
+   Use categories for spirit/ingredient types — e.g. if someone asks for a "whisky
+   drink" pass categories=["Whisky"]; "gin cocktail" → categories=["Gin"].
+   If someone describes a style or vibe (e.g. "something like an Old Fashioned"),
+   translate that into tags and/or categories rather than searching by name.
+3. Select up to 8 best matches. For each, write a 1-2 sentence blurb explaining
    why it fits and noting any category-substituted ingredients.
-3. Return ONLY valid JSON: {{"message": "...", "recommendations": [{{"name": "...", "slug": "...", "blurb": "..."}}]}}
+4. Return ONLY valid JSON: {{"message": "...", "recommendations": [{{"name": "...", "slug": "...", "blurb": "..."}}]}}
+   If the tool returns 0 results, set recommendations to [] and explain in message.
 Do not recommend recipes not returned by query_recipes.\
 """
 
 TOOL_DESCRIPTION = {
     "name": "query_recipes",
     "description": (
-        "Query cocktail recipes that the user can make with their current inventory. "
+        "Query cocktail recipes the user can make with their current inventory. "
         "Returns recipes matching the given filters."
     ),
     "parameters": {
@@ -61,21 +67,23 @@ TOOL_DESCRIPTION = {
                 "type": "array",
                 "items": {"type": "string"},
                 "description": (
-                    "Taste tag slugs to filter by. "
-                    "Valid values: citrusy, smoky, strong, low_abv, bitter, refreshing, sweet"
+                    "Filter by flavor/style. Valid slugs: "
+                    "citrusy, smoky, strong, low_abv, bitter, refreshing, sweet. "
+                    "Leave empty to return all makeable recipes."
                 ),
             },
-            "glassware": {
+            "categories": {
                 "type": "array",
                 "items": {"type": "string"},
                 "description": (
-                    "Glassware slugs to filter by. Valid values: highball_ice, highball_straw, "
-                    "julep_tin, coupe, coupe_citrus, rocks_big_ice, rocks_small_ice, nick_nora, tiki"
+                    "Filter by main spirit or ingredient type. Pass the common name of the "
+                    "spirit/ingredient family — e.g. 'Whisky', 'Gin', 'Rum', 'Tequila', "
+                    "'Vodka', 'Brandy', 'Vermouth', 'Amaro', 'Champagne'. "
+                    "Use when the user mentions a spirit type or ingredient family. "
+                    "To find 'something like an Old Fashioned', use categories=['Whisky'] "
+                    "and tags=['strong'] rather than searching by cocktail name. "
+                    "Leave empty to skip category filtering."
                 ),
-            },
-            "search": {
-                "type": "string",
-                "description": "Free-text search term to filter recipes by name.",
             },
         },
         "required": [],
@@ -115,10 +123,8 @@ def _fmt_tool_args(args: dict) -> str:
     parts = []
     if args.get("tags"):
         parts.append(f"tags={args['tags']}")
-    if args.get("glassware"):
-        parts.append(f"glassware={args['glassware']}")
-    if args.get("search"):
-        parts.append(f"search={args['search']!r}")
+    if args.get("categories"):
+        parts.append(f"categories={args['categories']}")
     return f"({', '.join(parts)})" if parts else "(no filters)"
 
 
@@ -192,18 +198,16 @@ def _execute_query_recipes(
     user, depth: int, args: dict, user_ing_ids: set, category_ing_ids: set
 ) -> list[dict]:
     """Execute the query_recipes tool: filter makeable recipes and annotate ingredients."""
+    from django.db.models import Q
+
+    from ingredients.models import IngredientCategory, IngredientCategoryAncestor
     from inventory.services import get_makeable_recipes
 
     raw_tags = args.get("tags", [])
     tags = [t for t in (raw_tags if isinstance(raw_tags, list) else []) if t in VALID_TASTE_TAG_SLUGS]
 
-    raw_glassware = args.get("glassware", [])
-    glassware = [
-        g for g in (raw_glassware if isinstance(raw_glassware, list) else [])
-        if g in VALID_GLASSWARE_SLUGS
-    ]
-
-    search = str(args.get("search", "")).strip()[:200]
+    raw_categories = args.get("categories", [])
+    categories = [c for c in (raw_categories if isinstance(raw_categories, list) else []) if c]
 
     recipes = get_makeable_recipes(user, max_depth=depth).prefetch_related(
         "recipe_ingredients__ingredient",
@@ -212,10 +216,22 @@ def _execute_query_recipes(
 
     if tags:
         recipes = recipes.filter(taste_tags__slug__in=tags).distinct()
-    if glassware:
-        recipes = recipes.filter(glassware__in=glassware)
-    if search:
-        recipes = recipes.filter(name__icontains=search)
+
+    if categories:
+        # Resolve each category name to its full descendant subtree, then OR-combine
+        cat_q = Q()
+        resolved = []
+        for cat_name in categories:
+            matched = IngredientCategory.objects.filter(name__icontains=cat_name).first()
+            if matched:
+                resolved.append(matched.name)
+                descendant_ids = IngredientCategoryAncestor.objects.filter(
+                    ancestor=matched
+                ).values_list("category_id", flat=True)
+                cat_q |= Q(recipe_ingredients__ingredient__categories__in=list(descendant_ids))
+        if cat_q:
+            logger.debug("category filter resolved %s → %s", categories, resolved)
+            recipes = recipes.filter(cat_q).distinct()
 
     results = []
     for recipe in recipes[:MAX_TOOL_RESULTS]:
@@ -241,10 +257,39 @@ def _execute_query_recipes(
     logger.info(
         "tool result → %d recipes %s: %s",
         len(results),
-        _fmt_tool_args({"tags": tags, "glassware": glassware, "search": search}),
+        _fmt_tool_args({"tags": tags, "categories": categories}),
         _fmt_recipe_list(results),
     )
     return results
+
+
+def _execute_query_recipes_relaxed(
+    user, depth: int, args: dict, user_ing_ids: set, category_ing_ids: set
+) -> list[dict]:
+    """
+    Execute query_recipes with progressive filter relaxation on empty results.
+
+    Tries in order:
+      1. Original args (tags + categories)
+      2. Drop categories, keep tags
+      3. No filters (all makeable recipes)
+    """
+    result = _execute_query_recipes(user, depth, args, user_ing_ids, category_ing_ids)
+    if result:
+        return result
+
+    if args.get("categories"):
+        relaxed = {**args, "categories": []}
+        logger.info("0 results — retrying without categories: query_recipes%s", _fmt_tool_args(relaxed))
+        result = _execute_query_recipes(user, depth, relaxed, user_ing_ids, category_ing_ids)
+        if result:
+            return result
+
+    if args.get("tags") or args.get("categories"):
+        logger.info("0 results — returning all makeable recipes (no filters)")
+        result = _execute_query_recipes(user, depth, {}, user_ing_ids, category_ing_ids)
+
+    return result
 
 
 def _to_gemini_messages(messages: list[dict]) -> list[dict]:
@@ -262,6 +307,7 @@ def _to_gemini_messages(messages: list[dict]) -> list[dict]:
 
 def _build_gemini_tool(genai):
     """Build a Gemini Tool for query_recipes using protos.Schema."""
+    props = TOOL_DESCRIPTION["parameters"]["properties"]
     return genai.types.Tool(function_declarations=[
         genai.types.FunctionDeclaration(
             name=TOOL_DESCRIPTION["name"],
@@ -272,16 +318,12 @@ def _build_gemini_tool(genai):
                     "tags": genai.protos.Schema(
                         type=genai.protos.Type.ARRAY,
                         items=genai.protos.Schema(type=genai.protos.Type.STRING),
-                        description=TOOL_DESCRIPTION["parameters"]["properties"]["tags"]["description"],
+                        description=props["tags"]["description"],
                     ),
-                    "glassware": genai.protos.Schema(
+                    "categories": genai.protos.Schema(
                         type=genai.protos.Type.ARRAY,
                         items=genai.protos.Schema(type=genai.protos.Type.STRING),
-                        description=TOOL_DESCRIPTION["parameters"]["properties"]["glassware"]["description"],
-                    ),
-                    "search": genai.protos.Schema(
-                        type=genai.protos.Type.STRING,
-                        description=TOOL_DESCRIPTION["parameters"]["properties"]["search"]["description"],
+                        description=props["categories"]["description"],
                     ),
                 },
             ),
@@ -341,7 +383,7 @@ def _chat_with_gemini(messages, user, depth, user_ing_ids, category_ing_ids) -> 
         )
 
     logger.info("[Gemini/%s] tool call → query_recipes%s", model_name, _fmt_tool_args(function_call_args))
-    tool_result = _execute_query_recipes(user, depth, function_call_args, user_ing_ids, category_ing_ids)
+    tool_result = _execute_query_recipes_relaxed(user, depth, function_call_args, user_ing_ids, category_ing_ids)
 
     # --- Call 2: with tool result, requesting JSON ---
     logger.info("[Gemini/%s] Call 2 → (%d recipes)", model_name, len(tool_result))
@@ -467,7 +509,7 @@ def _chat_with_ollama(messages, user, depth, user_ing_ids, category_ing_ids) -> 
                 except json.JSONDecodeError:
                     func_args = {}
             logger.info("[Ollama/%s] tool call → query_recipes%s", model_name, _fmt_tool_args(func_args or {}))
-            tool_result = _execute_query_recipes(
+            tool_result = _execute_query_recipes_relaxed(
                 user, depth, func_args or {}, user_ing_ids, category_ing_ids
             )
             break

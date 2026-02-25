@@ -4,6 +4,15 @@
 
 {% block head %}
 <style>
+  /* Chat-page cards grow to fit blurb text instead of clipping at fixed height */
+  .chat-recommendations .recipe-card {
+    height: auto;
+    min-height: 220px;
+  }
+  .chat-recommendations .recipe-card-body {
+    overflow: visible;
+  }
+
   /* Make body + main fill the full viewport for the chat layout */
   body:has(.chat-page) {
     overflow: hidden;
