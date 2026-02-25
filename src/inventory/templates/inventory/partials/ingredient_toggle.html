@@ -1,0 +1,10 @@
+<form id="toggle-form-{{ ingredient.id }}"
+      hx-post="{% url 'inventory_toggle' %}"
+      hx-target="#toggle-form-{{ ingredient.id }}"
+      hx-swap="outerHTML">
+  {% csrf_token %}
+  <input type="hidden" name="ingredient_id" value="{{ ingredient.id }}">
+  <button type="submit" class="{% if in_stock %}outline{% endif %}">
+    {% if in_stock %}✓ In Stock{% else %}+ Add{% endif %}
+  </button>
+</form>

@@ -1,0 +1,30 @@
+<p class="result-count">{{ ingredients|length }} ingredient{{ ingredients|length|pluralize }}</p>
+
+{% if ingredients %}
+<table class="inventory-table">
+  <thead>
+    <tr>
+      <th>Ingredient</th>
+      <th>Categories</th>
+      <th class="toggle-col">Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ingredient in ingredients %}
+    <tr>
+      <td>{{ ingredient.name }}</td>
+      <td>
+        {% for cat in ingredient.categories.all %}
+        <span class="category-pill">{{ cat.name }}</span>
+        {% endfor %}
+      </td>
+      <td class="toggle-col">
+        {% include "inventory/partials/ingredient_toggle.html" with ingredient=ingredient in_stock=ingredient.in_stock %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No ingredients found.</p>
+{% endif %}
