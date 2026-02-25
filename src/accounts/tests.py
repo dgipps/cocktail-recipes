@@ -10,23 +10,23 @@ class SignupViewTests(TestCase):
         self.assertTemplateUsed(response, "accounts/signup.html")
         self.assertIn("form", response.context)
 
-    def test_post_valid_creates_user_and_redirects(self):
+    def test_post_valid_creates_user_and_shows_pending(self):
         response = self.client.post(reverse("signup"), {
             "username": "newuser",
             "password1": "TestPass123!",
             "password2": "TestPass123!",
         })
-        self.assertRedirects(response, reverse("recipe_list"))
+        self.assertEqual(response.status_code, 200)
         self.assertTrue(User.objects.filter(username="newuser").exists())
 
-    def test_post_valid_logs_user_in(self):
+    def test_post_valid_does_not_log_user_in(self):
         self.client.post(reverse("signup"), {
             "username": "newuser",
             "password1": "TestPass123!",
             "password2": "TestPass123!",
         })
         response = self.client.get(reverse("recipe_list"))
-        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, "/accounts/login/?next=/recipes/")
 
     def test_post_valid_user_has_no_elevated_privileges(self):
         self.client.post(reverse("signup"), {
@@ -37,7 +37,17 @@ class SignupViewTests(TestCase):
         user = User.objects.get(username="newuser")
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
-        self.assertTrue(user.is_active)
+        self.assertFalse(user.is_active)
+
+    def test_post_valid_shows_pending_confirmation(self):
+        response = self.client.post(reverse("signup"), {
+            "username": "newuser",
+            "password1": "TestPass123!",
+            "password2": "TestPass123!",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["pending"])
+        self.assertIsNone(response.context["form"])
 
     def test_post_mismatched_passwords_rerenders(self):
         response = self.client.post(reverse("signup"), {
